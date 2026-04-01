@@ -1,0 +1,5 @@
+_target_: src.data.components.clotho_dataset.ClothoAudioTextDataset
+split: train
+dataset_id: CLAPv2/Clotho
+caption_index: 1
+sampling_rate: 16000

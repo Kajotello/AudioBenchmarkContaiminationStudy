@@ -1,9 +1,9 @@
-from typing import Any, Dict, List, Tuple
+from pathlib import Path
+from typing import Any, Dict, Tuple
 
 import hydra
 import rootutils
-from lightning import LightningDataModule, LightningModule, Trainer
-from lightning.pytorch.loggers import Logger
+import torch
 from omegaconf import DictConfig
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
@@ -27,8 +27,6 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 from src.utils import (
     RankedLogger,
     extras,
-    instantiate_loggers,
-    log_hyperparameters,
     task_wrapper,
 )
 
@@ -37,47 +35,41 @@ log = RankedLogger(__name__, rank_zero_only=True)
 
 @task_wrapper
 def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Evaluates given checkpoint on a datamodule testset.
-
-    This method is wrapped in optional @task_wrapper decorator, that controls the behavior during
-    failure. Useful for multiruns, saving info about the crash, etc.
-
-    :param cfg: DictConfig configuration composed by Hydra.
-    :return: Tuple[dict, dict] with metrics and dict with all instantiated objects.
-    """
-    assert cfg.ckpt_path
-
-    log.info(f"Instantiating datamodule <{cfg.data._target_}>")
-    datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(cfg.model)
+    model = hydra.utils.instantiate(cfg.model)
+    model.eval()
 
-    log.info("Instantiating loggers...")
-    logger: List[Logger] = instantiate_loggers(cfg.get("logger"))
+    log.info(f"Instantiating dataset <{cfg.data._target_}>")
+    dataset = hydra.utils.instantiate(cfg.data)
 
-    log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
-    trainer: Trainer = hydra.utils.instantiate(cfg.trainer, logger=logger)
+    log.info(f"Instantiating method <{cfg.method._target_}>")
+    method = hydra.utils.instantiate(cfg.method)
 
     object_dict = {
         "cfg": cfg,
-        "datamodule": datamodule,
+        "dataset": dataset,
         "model": model,
-        "logger": logger,
-        "trainer": trainer,
+        "method": method,
     }
 
-    if logger:
-        log.info("Logging hyperparameters!")
-        log_hyperparameters(object_dict)
+    max_samples = int(cfg.get("max_samples", len(dataset)))
+    max_samples = min(max_samples, len(dataset))
+    scores: list[float] = []
 
-    log.info("Starting testing!")
-    trainer.test(model=model, datamodule=datamodule, ckpt_path=cfg.ckpt_path)
+    log.info("Running method on dataset...")
+    with torch.no_grad():
+        for idx in range(max_samples):
+            audio, text = dataset[idx]
+            score = method.run(model=model, audio=audio, text=text)
+            scores.append(float(score))
 
-    # for predictions use trainer.predict(...)
-    # predictions = trainer.predict(model=model, dataloaders=dataloaders, ckpt_path=cfg.ckpt_path)
+    metric_dict = method.aggregate(scores)
+    metric_dict["method_name"] = cfg.method._target_
 
-    metric_dict = trainer.callback_metrics
+    output_path = Path(cfg.paths.output_dir) / "eval_metrics.txt"
+    output_path.write_text("\n".join(f"{k}: {v}" for k, v in metric_dict.items()), encoding="utf-8")
+    log.info(f"Saved metrics to {output_path}")
 
     return metric_dict, object_dict
 
