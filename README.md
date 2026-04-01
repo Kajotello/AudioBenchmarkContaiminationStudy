@@ -106,19 +106,20 @@ Additionally, Audio Reasoner uses a large combined training dataset `zhifeixie/A
 
 ## Planned Experiments and Schedule
 
-Date	Milestone
-25.03.2026	Literature overview — survey contamination detection in LLMs and VLMs; models and datasets analysis (Clotho-AQA, MMAU, AudioMCQ, Audio-Reasoner, Flamingo Audio)
-01.04.2026	HPC cluster access setup and environment configuration (Conda, PyTorch, torchaudio, HF)
-03.04–06.04.2026	Easter break
-08.04.2026	Experimental setup — dataloader implementation, evaluation pipeline, logging with W&B
-15.04.2026	Adaptation of Method 1 — slot guessing for perturbed audio captions (Both Text and Images Leaked!)
-22.04.2026	Adaptation of Method 2 — in-context learning contamination detection for audio (Detecting Data Contamination via ICL)
-29.04.2026	Adaptation of Method 3 — Membership Inference Attacks against Large Vision-Language Models 
-01.05–04.05.2026	majówka (🚲, 🍻)
-06.05.2026	Bug fixes, edge case handling, and pipeline stabilization
-13.05.2026	Results analysis — ablation over perturbation types, cross-model comparison
-20.05.2026	Write-up, figures, and final results consolidation
-25.05.2026	final deadline
+|Date |	Milestone|
+| -- | --
+25.03.2026	| Literature overview — survey contamination detection in LLMs and VLMs; models and datasets analysis (Clotho-AQA, MMAU, AudioMCQ, Audio-Reasoner, Flamingo Audio)
+01.04.2026 |	HPC cluster access setup and environment configuration (Conda, PyTorch, torchaudio, HF)
+03.04–06.04.2026 |	Easter break
+08.04.2026	| Experimental setup — dataloader implementation, evaluation pipeline, logging with W&B
+15.04.2026 |	Adaptation of Method 1 — slot guessing for perturbed audio captions (Both Text and Images Leaked!)
+22.04.2026	| Adaptation of Method 2 — in-context learning contamination detection for audio (Detecting Data Contamination via ICL)
+29.04.2026	| Adaptation of Method 3 — Membership Inference Attacks against Large Vision-Language Models 
+01.05–04.05.2026 |	majówka (🚲, 🍻)
+06.05.2026	| Bug fixes, edge case handling, and pipeline stabilization
+13.05.2026	| Results analysis — ablation over perturbation types, cross-model comparison
+20.05.2026	| Write-up, figures, and final results consolidation
+25.05.2026	| final deadline
 
 
 ## Technological Stack
