@@ -1,16 +1,38 @@
+from __future__ import annotations
+
 import math
+
+import torch
 
 from src.methods.base_method import MethodBaseClass
 from src.models.base_AL_model import BaseAudioLanguageModel
 
 
 class MIAPerplexityMethod(MethodBaseClass):
-    """Per-example perplexity-style score using model log-probabilities."""
+    """
+    Membership Inference Attack baseline based on per-token perplexity.
 
-    def run(self, model: BaseAudioLanguageModel, audio, text: str) -> float:
-        seq_log_prob = model.get_log_probs(audio=audio, text=text)
-        if hasattr(seq_log_prob, "item"):
-            seq_log_prob = seq_log_prob.item()
+    Interpretation:
+        - lower perplexity => sample is more likely to be a member
+        - higher perplexity => sample is more likely to be a non-member
+    """
 
-        # Perplexity proxy from sequence log-probability.
-        return float(math.exp(-float(seq_log_prob)))
+    def __init__(self, prompt: str | None = None) -> None:
+        self.prompt = prompt
+
+    def run(
+        self,
+        model: BaseAudioLanguageModel,
+        audio: torch.Tensor,
+        text: str,
+    ) -> float:
+        score_dict = model.score_text_given_audio(
+            audio=audio,
+            target_text=text,
+            prompt=self.prompt,
+        )
+
+        mean_nll = float(score_dict["mean_nll"])
+        perplexity = float(math.exp(mean_nll))
+
+        return perplexity
