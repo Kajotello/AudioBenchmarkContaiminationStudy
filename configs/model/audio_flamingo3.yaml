@@ -1,2 +1,2 @@
-_target_: src.models.wrappers.audio_flamigo3_wrapper.AudioFlamingoWrapper
-model_id: "nvidia/audio-flamingo-3"
+_target_: src.models.wrappers.audio_flamingo3_wrapper.AudioFlamingoWrapper
+model_id: "nvidia/audio-flamingo-3-hf"
