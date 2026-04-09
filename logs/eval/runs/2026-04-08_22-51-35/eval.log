@@ -1,0 +1,71 @@
+[2026-04-08 22:51:35,621][src.utils.utils][INFO] - [rank: 0] Enforcing tags! <cfg.extras.enforce_tags=True>
+[2026-04-08 22:51:35,627][src.utils.utils][INFO] - [rank: 0] Printing config tree with Rich! <cfg.extras.print_config=True>
+[2026-04-08 22:51:35,627][src.utils.rich_utils][WARNING] - [rank: 0] Field 'data' not found in config. Skipping 'data' config printing...
+[2026-04-08 22:51:35,627][src.utils.rich_utils][WARNING] - [rank: 0] Field 'callbacks' not found in config. Skipping 'callbacks' config printing...
+[2026-04-08 22:51:35,627][src.utils.rich_utils][WARNING] - [rank: 0] Field 'trainer' not found in config. Skipping 'trainer' config printing...
+[2026-04-08 22:51:35,652][__main__][INFO] - [rank: 0] Instantiating model <src.models.wrappers.audio_flamingo3_wrapper.AudioFlamingoWrapper>
+[2026-04-08 22:51:36,171][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:36,193][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/processor_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:36,325][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/nvidia/audio-flamingo-3-hf/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:36,457][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:36,477][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/processor_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:36,607][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/chat_template.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:36,740][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/chat_template.jinja "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:36,759][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/chat_template.jinja "HTTP/1.1 200 OK"
+[2026-04-08 22:51:36,888][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/audio_tokenizer_config.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:37,021][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/nvidia/audio-flamingo-3-hf/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:37,149][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:37,149][huggingface_hub.utils._http][WARNING] - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[2026-04-08 22:51:37,171][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/processor_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:37,305][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/chat_template.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:37,453][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/chat_template.jinja "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:37,474][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/chat_template.jinja "HTTP/1.1 200 OK"
+[2026-04-08 22:51:37,606][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/audio_tokenizer_config.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:37,736][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:37,754][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/processor_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:37,886][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:38,035][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:38,055][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/processor_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:38,184][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:38,311][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:38,330][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:38,472][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:38,491][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/tokenizer_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:38,623][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/nvidia/audio-flamingo-3-hf/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+[2026-04-08 22:51:38,754][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/nvidia/audio-flamingo-3-hf/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+[2026-04-08 22:51:39,749][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/nvidia/audio-flamingo-3-hf "HTTP/1.1 200 OK"
+[2026-04-08 22:51:39,890][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:39,911][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:40,045][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:51:40,065][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:51:40,207][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+[2026-04-08 22:51:40,373][accelerate.utils.modeling][INFO] - Device 0 seems unavailable, Proceeding to check subsequent devices.
+[2026-04-08 22:52:40,300][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/nvidia/audio-flamingo-3-hf/resolve/main/generation_config.json "HTTP/1.1 307 Temporary Redirect"
+[2026-04-08 22:52:40,319][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/nvidia/audio-flamingo-3-hf/5c47d2de83c3163162586561f3ddba75b4a1194e/generation_config.json "HTTP/1.1 200 OK"
+[2026-04-08 22:52:40,324][__main__][INFO] - [rank: 0] Instantiating method <src.methods.mia_perplexity_method.MIAPerplexityMethod>
+[2026-04-08 22:52:40,329][__main__][INFO] - [rank: 0] Instantiating member dataset <src.data.components.clotho_dataset.ClothoAudioTextDataset>
+[2026-04-08 22:52:40,882][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/main/README.md "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:41,016][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/datasets/CLAPv2/Clotho "HTTP/1.1 200 OK"
+[2026-04-08 22:52:41,144][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/Clotho.py "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:41,533][httpx][INFO] - HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/CLAPv2/Clotho/CLAPv2/Clotho.py "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:41,659][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/README.md "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:41,788][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/datasets/CLAPv2/Clotho/revision/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a "HTTP/1.1 200 OK"
+[2026-04-08 22:52:41,917][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:42,142][httpx][INFO] - HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=CLAPv2/Clotho "HTTP/1.1 200 OK"
+[2026-04-08 22:52:42,286][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/datasets/CLAPv2/Clotho/tree/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+[2026-04-08 22:52:42,431][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/datasets/CLAPv2/Clotho/tree/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a?recursive=false&expand=false "HTTP/1.1 200 OK"
+[2026-04-08 22:52:42,614][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/dataset_infos.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:42,701][__main__][INFO] - [rank: 0] Instantiating non-member dataset <src.data.components.clotho_dataset.ClothoAudioTextDataset>
+[2026-04-08 22:52:42,970][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/main/README.md "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:43,109][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/datasets/CLAPv2/Clotho "HTTP/1.1 200 OK"
+[2026-04-08 22:52:43,256][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/Clotho.py "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:43,377][httpx][INFO] - HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/CLAPv2/Clotho/CLAPv2/Clotho.py "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:43,536][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/README.md "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:43,664][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/.huggingface.yaml "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:43,803][httpx][INFO] - HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=CLAPv2/Clotho "HTTP/1.1 200 OK"
+[2026-04-08 22:52:43,983][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/datasets/CLAPv2/Clotho/resolve/b491ad6569dba180ca60a0e2d17a1d6a0d5d9f4a/dataset_infos.json "HTTP/1.1 404 Not Found"
+[2026-04-08 22:52:44,001][__main__][INFO] - [rank: 0] Scoring member dataset...
+[2026-04-09 06:01:29,691][__main__][INFO] - [rank: 0] Scoring non-member dataset...
+[2026-04-09 13:24:46,838][__main__][INFO] - [rank: 0] Saved per-sample MIA results to /net/tscratch/people/plgrszczepaniak/AudioBenchmarkContaiminationStudy/logs/eval/runs/2026-04-08_22-51-35/mia_per_sample_results.csv
+[2026-04-09 13:24:47,053][__main__][INFO] - [rank: 0] Saved MIA metrics to /net/tscratch/people/plgrszczepaniak/AudioBenchmarkContaiminationStudy/logs/eval/runs/2026-04-08_22-51-35/mia_metrics.txt
+[2026-04-09 13:24:47,053][src.utils.utils][INFO] - [rank: 0] Output dir: /net/tscratch/people/plgrszczepaniak/AudioBenchmarkContaiminationStudy/logs/eval/runs/2026-04-08_22-51-35

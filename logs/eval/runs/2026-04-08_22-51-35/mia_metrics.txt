@@ -1,0 +1,8 @@
+method_name: src.methods.mia_perplexity_method.MIAPerplexityMethod
+num_members: 100
+num_non_members: 100
+member_score_mean: 8.346850062148341
+non_member_score_mean: 20.069863070782052
+roc_auc: 0.7886
+best_threshold: 6.76734862959388
+best_accuracy: 0.735

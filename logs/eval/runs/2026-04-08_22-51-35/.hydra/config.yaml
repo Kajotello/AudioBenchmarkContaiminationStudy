@@ -1,0 +1,46 @@
+task_name: eval
+tags:
+- dev
+data_member:
+  _target_: src.data.components.clotho_dataset.ClothoAudioTextDataset
+  split: train
+  dataset_id: CLAPv2/Clotho
+  caption_index: 1
+  sampling_rate: 16000
+data_non_member:
+  _target_: src.data.components.clotho_dataset.ClothoAudioTextDataset
+  split: validation
+  dataset_id: CLAPv2/Clotho
+  caption_index: 1
+  sampling_rate: 16000
+max_member_samples: 100
+max_non_member_samples: 100
+model:
+  _target_: src.models.wrappers.audio_flamingo3_wrapper.AudioFlamingoWrapper
+  model_id: nvidia/audio-flamingo-3-hf
+method:
+  _target_: src.methods.mia_perplexity_method.MIAPerplexityMethod
+  prompt: null
+logger:
+  wandb:
+    _target_: lightning.pytorch.loggers.wandb.WandbLogger
+    save_dir: ${paths.output_dir}
+    offline: false
+    id: null
+    anonymous: null
+    project: lightning-hydra-template
+    log_model: false
+    prefix: ''
+    group: ''
+    tags: []
+    job_type: ''
+paths:
+  root_dir: ${oc.env:PROJECT_ROOT}
+  data_dir: ${paths.root_dir}/data/
+  log_dir: ${paths.root_dir}/logs/
+  output_dir: ${hydra:runtime.output_dir}
+  work_dir: ${hydra:runtime.cwd}
+extras:
+  ignore_warnings: false
+  enforce_tags: true
+  print_config: true
