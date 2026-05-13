@@ -2,176 +2,155 @@
 set -euo pipefail
 
 # ============================================================
-# Robust HPC environment setup for AudioBenchmarkContaiminationStudy
-# - derives username with whoami
-# - uses /net/tscratch/people/{username}/conda/py311_env
-# - redirects caches to scratch
-# - exports runtime variables needed in both setup and jobs
+# Recreates the pinned working environment from requirements.txt.
+#
+# Override via env vars if needed:
+#   SCRATCH_BASE    base scratch dir (default: /net/tscratch/people/$USER)
+#   ENV_PREFIX      conda env prefix  (default: $SCRATCH_BASE/conda/py311_env)
+#   PROJECT_DIR     where requirements.txt lives (default: $PWD)
+#   PYTHON_VERSION  python version (default: 3.11)
+#   RECREATE        if "1", delete existing env first (default: 0)
 # ============================================================
 
-log() {
-  echo "[setup_env] $*"
-}
+log() { echo "[setup_env] $*"; }
+die() { echo "[setup_env][ERROR] $*" >&2; exit 1; }
 
-die() {
-  echo "[setup_env][ERROR] $*" >&2
-  exit 1
-}
-
-# ---------- identify user ----------
+# ── identity / paths ─────────────────────────────────────────────────────────
 USERNAME="$(whoami)"
 [[ -n "$USERNAME" ]] || die "whoami returned empty username"
 
-# ---------- base paths ----------
 export SCRATCH_BASE="${SCRATCH_BASE:-/net/tscratch/people/${USERNAME}}"
 export ENV_PREFIX="${ENV_PREFIX:-${SCRATCH_BASE}/conda/py311_env}"
 export PROJECT_DIR="${PROJECT_DIR:-$PWD}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
-# ---------- cache / package locations ----------
-export MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$SCRATCH_BASE/micromamba}"
+# ── cache / scratch redirects (don't hammer $HOME) ───────────────────────────
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$SCRATCH_BASE/.cache}"
 export PIP_CACHE_DIR="${PIP_CACHE_DIR:-$SCRATCH_BASE/.cache/pip}"
 export CONDA_PKGS_DIRS="${CONDA_PKGS_DIRS:-$SCRATCH_BASE/.cache/conda/pkgs}"
-
 export HF_HOME="${HF_HOME:-$SCRATCH_BASE/.cache/huggingface}"
 export HF_HUB_CACHE="${HF_HUB_CACHE:-$HF_HOME/hub}"
 export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$HF_HOME/datasets}"
 export HF_ASSETS_CACHE="${HF_ASSETS_CACHE:-$HF_HOME/assets}"
 export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/hub}"
 export HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$HF_HOME/hub}"
-
-# Optional but often useful on shared systems
 export TMPDIR="${TMPDIR:-$SCRATCH_BASE/.tmp}"
 export PYTHONNOUSERSITE=1
 export TOKENIZERS_PARALLELISM=false
 
-PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+log "USERNAME    : $USERNAME"
+log "SCRATCH_BASE: $SCRATCH_BASE"
+log "ENV_PREFIX  : $ENV_PREFIX"
+log "PROJECT_DIR : $PROJECT_DIR"
+log "PYTHON      : $PYTHON_VERSION"
 
-log "Resolved username       : $USERNAME"
-log "SCRATCH_BASE            : $SCRATCH_BASE"
-log "ENV_PREFIX              : $ENV_PREFIX"
-log "PROJECT_DIR             : $PROJECT_DIR"
-log "XDG_CACHE_HOME          : $XDG_CACHE_HOME"
-log "PIP_CACHE_DIR           : $PIP_CACHE_DIR"
-log "CONDA_PKGS_DIRS         : $CONDA_PKGS_DIRS"
-log "HF_HOME                 : $HF_HOME"
-
-# ---------- create required directories ----------
 mkdir -p \
   "$(dirname "$ENV_PREFIX")" \
-  "$MAMBA_ROOT_PREFIX" \
-  "$XDG_CACHE_HOME" \
-  "$PIP_CACHE_DIR" \
-  "$CONDA_PKGS_DIRS" \
-  "$HF_HOME" \
-  "$HF_HUB_CACHE" \
-  "$HF_DATASETS_CACHE" \
-  "$HF_ASSETS_CACHE" \
+  "$XDG_CACHE_HOME" "$PIP_CACHE_DIR" "$CONDA_PKGS_DIRS" \
+  "$HF_HOME" "$HF_HUB_CACHE" "$HF_DATASETS_CACHE" "$HF_ASSETS_CACHE" \
   "$TMPDIR"
 
-# ---------- load conda ----------
+# ── conda bootstrap ──────────────────────────────────────────────────────────
 if command -v module >/dev/null 2>&1; then
   log "Loading Miniconda3 module"
   module load Miniconda3 || die "Failed to load Miniconda3 module"
 fi
-
 command -v conda >/dev/null 2>&1 || die "conda not found"
 eval "$(conda shell.bash hook)"
 
-# ---------- accept Anaconda TOS if needed ----------
-log "Accepting conda TOS if required"
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main || true
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r    || true
 
-# ---------- create env if missing ----------
-if [[ ! -d "$ENV_PREFIX" ]]; then
-  log "Creating conda environment at $ENV_PREFIX"
-  conda create -p "$ENV_PREFIX" "python=$PYTHON_VERSION" -y
-else
-  log "Conda environment already exists at $ENV_PREFIX"
+# ── optional clean rebuild ───────────────────────────────────────────────────
+if [[ "${RECREATE:-0}" == "1" && -d "$ENV_PREFIX" ]]; then
+  log "RECREATE=1 — removing existing env at $ENV_PREFIX"
+  rm -rf "$ENV_PREFIX"
 fi
 
-# ---------- activate env ----------
-log "Activating environment"
+if [[ ! -d "$ENV_PREFIX" ]]; then
+  log "Creating conda env"
+  conda create -p "$ENV_PREFIX" "python=$PYTHON_VERSION" -y
+else
+  log "Env exists; will install/update in place. Use RECREATE=1 to wipe."
+fi
+
+log "Activating env"
 conda activate "$ENV_PREFIX"
-
-# ---------- runtime library exports ----------
 export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}"
-export PATH="$ENV_PREFIX/bin:${PATH}"
-
-# This is sometimes needed for builds or native extensions
+export PATH="$ENV_PREFIX/bin:$PATH"
 export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 
-# ---------- install conda-side deps ----------
-log "Installing ffmpeg and libstdcxx-ng"
+# ── conda-side native deps ───────────────────────────────────────────────────
+# ffmpeg     : torchcodec/librosa audio decoding
+# libstdcxx-ng : recent libstdc++ matching PyTorch wheels' ABI
+log "Installing ffmpeg and libstdcxx-ng from conda-forge"
 conda install -p "$ENV_PREFIX" ffmpeg libstdcxx-ng -c conda-forge -y
 
-# ---------- install Python deps ----------
+# ── frozen-requirements install ──────────────────────────────────────────────
+[[ -f "$PROJECT_DIR/requirements.txt" ]] \
+  || die "requirements.txt missing in $PROJECT_DIR"
+
+# The frozen file pins `packaging` to a conda-forge build worker's local path
+# (file:///home/conda/feedstock_root/...) which doesn't exist on this machine.
+# Rewrite it to a regular PyPI lookup before install.
+REQUIREMENTS_CLEAN="$TMPDIR/requirements_clean.txt"
+sed -E 's|^packaging[[:space:]]*@[[:space:]]*file://[^[:space:]]*|packaging|' \
+    "$PROJECT_DIR/requirements.txt" > "$REQUIREMENTS_CLEAN"
+
 log "Upgrading pip"
 python -m pip install --upgrade pip
 
-log "Installing core packages"
-python -m pip install --upgrade transformers accelerate
-python -m pip install soundfile librosa peft huggingface_hub
-python -m pip install hydra-core hydra-colorlog lightning
-python -m pip install rootutils datasets
+# Three indexes:
+#   PyPI (default)                  — general packages
+#   download.pytorch.org/whl/cu128  — torch*==2.11.0+cu128, triton, cuda-bindings
+#   pypi.nvidia.com                 — cuda-toolkit==12.8.1, nvidia-*-cu12 / nvidia-*
+log "Installing pinned requirements (will take several minutes; ~3 GB of wheels)"
+python -m pip install \
+    --extra-index-url https://download.pytorch.org/whl/cu128 \
+    --extra-index-url https://pypi.nvidia.com \
+    -r "$REQUIREMENTS_CLEAN"
 
-log "Installing torchcodec for CUDA 12.8"
-python -m pip install torchcodec --index-url=https://download.pytorch.org/whl/cu128
-
-# ---------- install project requirements ----------
-if [[ -f "$PROJECT_DIR/requirements.txt" ]]; then
-  log "Installing requirements.txt from $PROJECT_DIR"
-  cd "$PROJECT_DIR"
-  python -m pip install -r requirements.txt
-else
-  log "No requirements.txt found in $PROJECT_DIR, skipping"
-fi
-
-# ---------- diagnostics ----------
+# ── sanity check ─────────────────────────────────────────────────────────────
 echo "--------------------------------------------------"
-echo "USERNAME                : $USERNAME"
-echo "SCRATCH_BASE            : $SCRATCH_BASE"
-echo "ENV_PREFIX              : $ENV_PREFIX"
-echo "PROJECT_DIR             : $PROJECT_DIR"
-echo "PYTHON                  : $(python --version 2>&1)"
-echo "PIP                     : $(python -m pip --version)"
-echo "CONDA_PREFIX            : ${CONDA_PREFIX:-unset}"
-echo "LD_LIBRARY_PATH         : $LD_LIBRARY_PATH"
-echo "TMPDIR                  : $TMPDIR"
-echo "HF_HOME                 : $HF_HOME"
-echo "HF_DATASETS_CACHE       : $HF_DATASETS_CACHE"
+echo "USERNAME    : $USERNAME"
+echo "ENV_PREFIX  : $ENV_PREFIX"
+echo "PYTHON      : $(python --version 2>&1)"
+echo "PIP         : $(python -m pip --version)"
 echo "--------------------------------------------------"
 
-log "Checking imports"
+log "Verifying critical imports + torch CUDA build"
 python - <<'PY'
-import importlib
-
-packages = [
-    "torch",
-    "transformers",
-    "accelerate",
-    "datasets",
-    "librosa",
-    "soundfile",
-    "lightning",
-    "rootutils",
+import importlib, sys
+required = [
+    "torch", "torchvision", "torchaudio", "torchcodec",
+    "transformers", "accelerate", "datasets",
+    "librosa", "soundfile",
+    "lightning", "hydra", "rootutils", "peft", "huggingface_hub",
 ]
-
-failed = False
-for pkg in packages:
+failed = []
+for pkg in required:
     try:
-        importlib.import_module(pkg)
-        print(f"[OK] {pkg}")
+        m = importlib.import_module(pkg)
+        version = getattr(m, "__version__", "?")
+        print(f"[OK]   {pkg:<20} {version}")
     except Exception as e:
-        failed = True
-        print(f"[FAIL] {pkg}: {e}")
+        failed.append(pkg)
+        print(f"[FAIL] {pkg:<20} {e}")
 
+import torch
+print()
+print(f"torch.__version__  : {torch.__version__}")
+print(f"torch.version.cuda : {torch.version.cuda}")
+if not torch.version.cuda.startswith("12.8"):
+    print(f"WARNING: expected torch built for CUDA 12.8, got {torch.version.cuda}",
+          file=sys.stderr)
+    sys.exit(1)
 if failed:
-    raise SystemExit(1)
+    print(f"\n{len(failed)} package(s) failed to import: {failed}", file=sys.stderr)
+    sys.exit(1)
 PY
 
 log "ffmpeg check"
 ffmpeg -version | head -n 1 || true
 
-log "Setup finished successfully"
+log "Setup finished. Activate with: conda activate $ENV_PREFIX"

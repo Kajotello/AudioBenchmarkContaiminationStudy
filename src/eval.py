@@ -92,25 +92,39 @@ def _score_dataset(
     label: int,
     split_name: str,
     max_samples: int | None,
+    batch_size: int = 4,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
-
     limit = len(dataset) if max_samples is None else min(int(max_samples), len(dataset))
 
-    for idx in range(limit):
-        audio, text = dataset[idx]
-        score = float(method.run(model=model, audio=audio, text=text))
-        results.append(
-            {
-                "idx": idx,
-                "split": split_name,
-                "label": label,  # 1 = member, 0 = non-member
-                "score": score,
-                "text": text,
-                "text_length_chars": len(text),
-            }
-        )
+    use_batch = hasattr(method, "run_batch") and hasattr(model, "score_text_given_audio_batch")
 
+    if not use_batch:
+        # original per-sample path
+        for idx in range(limit):
+            audio, text = dataset[idx]
+            score = float(method.run(model=model, audio=audio, text=text))
+            results.append({
+                "idx": idx, "split": split_name, "label": label,
+                "score": score, "text": text, "text_length_chars": len(text),
+            })
+        return results
+
+    # batched path
+    for start in range(0, limit, batch_size):
+        end = min(start + batch_size, limit)
+        audios, texts = [], []
+        for idx in range(start, end):
+            a, t = dataset[idx]
+            audios.append(a)
+            texts.append(t)
+        scores = method.run_batch(model=model, audios=audios, texts=texts)
+        for i, idx in enumerate(range(start, end)):
+            results.append({
+                "idx": idx, "split": split_name, "label": label,
+                "score": float(scores[i]),
+                "text": texts[i], "text_length_chars": len(texts[i]),
+            })
     return results
 
 
@@ -152,6 +166,7 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     max_member_samples = cfg.get("max_member_samples", None)
     max_non_member_samples = cfg.get("max_non_member_samples", None)
+    batch_size = int(cfg.get("batch_size", 1))
 
     log.info("Scoring member dataset...")
     with torch.no_grad():
@@ -162,6 +177,7 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             label=1,
             split_name="member",
             max_samples=max_member_samples,
+            batch_size=batch_size,
         )
 
     log.info("Scoring non-member dataset...")
@@ -173,6 +189,7 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             label=0,
             split_name="non_member",
             max_samples=max_non_member_samples,
+            batch_size=batch_size,
         )
 
     all_results = member_results + non_member_results
