@@ -1,0 +1,8 @@
+.cache/
+__pycache__/
+.DS_Store
+LICENSE.md
+assets/
+clap_ckpt/
+incl_licenses/
+safe_ckpt/

@@ -143,6 +143,16 @@ dmypy.json
 *.h5
 *.tar
 *.tar.gz
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# Model/HuggingFace caches
+**/.cache/
+**/safe_ckpt/
+**/clap_ckpt/
 
 # Lightning-Hydra-Template
 configs/local/default.yaml
