@@ -167,10 +167,65 @@ def predict(filepath, question, clap_config, inference_kwargs):
             **inference_kwargs,
             # temperature=0.0
         )[0]
-    
+
     output_decoded = tokenizer.decode(output).split(tokenizer.sep_token)[-1].replace(tokenizer.eos_token, '').replace(tokenizer.pad_token, '').replace('<|endofchunk|>', '')
 
     print('Prompt: ', question)
+    print('Audio Flamingo 2: ', output_decoded)
+
+    return output_decoded
+
+
+def predict_with_context(filepath1, prompt1, answer1, filepath2, prompt2, clap_config, inference_kwargs):
+    """One-shot inference: audio1+prompt1+answer1 as context, then answer prompt2 for audio2.
+
+    The Flamingo model expects audio_x of shape (B, total_num_windows, window_length).
+    Multiple audios are concatenated along the windows axis; the two <audio> tokens in
+    the text mark their positions for the cross-attention layers.
+    """
+
+    audio_clips1, audio_embed_mask1 = load_audio(filepath1, clap_config)
+    audio_clips2, audio_embed_mask2 = load_audio(filepath2, clap_config)
+
+    # Concatenate both audios along the window axis -> (total_windows, window_length)
+    audio_clips = torch.cat([audio_clips1, audio_clips2], dim=0)
+    audio_embed_mask = torch.cat([audio_embed_mask1, audio_embed_mask2], dim=0)
+
+    audio_clips = audio_clips.unsqueeze(0).to(device_id, dtype=cast_dtype, non_blocking=True)
+    audio_embed_mask = audio_embed_mask.unsqueeze(0).to(device_id, dtype=cast_dtype, non_blocking=True)
+
+    # Interleaved few-shot prompt: context example then query
+    sample = (
+        f"<audio>{str(prompt1).lower().strip()}{tokenizer.sep_token}"
+        f"{str(answer1).strip()}<|endofchunk|>"
+        f"<audio>{str(prompt2).lower().strip()}{tokenizer.sep_token}"
+    )
+
+    text = tokenizer(
+        sample,
+        max_length=512,
+        padding="longest",
+        truncation="only_first",
+        return_tensors="pt"
+    )
+
+    input_ids = text["input_ids"].to(device_id, non_blocking=True)
+
+    with torch.no_grad():
+        output = model.generate(
+            audio_x=audio_clips,
+            audio_x_mask=audio_embed_mask,
+            lang_x=input_ids,
+            eos_token_id=tokenizer.eos_token_id,
+            max_new_tokens=256,
+            **inference_kwargs,
+        )[0]
+
+    output_decoded = tokenizer.decode(output).split(tokenizer.sep_token)[-1].replace(tokenizer.eos_token, '').replace(tokenizer.pad_token, '').replace('<|endofchunk|>', '')
+
+    print('Context prompt: ', prompt1)
+    print('Context answer: ', answer1)
+    print('Query prompt: ', prompt2)
     print('Audio Flamingo 2: ', output_decoded)
 
     return output_decoded
@@ -182,6 +237,12 @@ if __name__ == "__main__":
     parser.add_argument("--idx", "-idx", type=int, default=1, help="Sample index from CLAPv2/Clotho validation split")
     parser.add_argument("--prompt", "-p", type=str, default="describe audio", help="Prompt for the model")
     parser.add_argument("--file", "-f", type=str, default=None, help="Path to audio file; if set, skips dataset loading")
+    # Few-shot / context args
+    parser.add_argument("--audio1", type=str, default=None, help="Path to context audio (example 1)")
+    parser.add_argument("--prompt1", type=str, default=None, help="Question for context audio (example 1)")
+    parser.add_argument("--answ1", type=str, default=None, help="Answer for context audio (example 1)")
+    parser.add_argument("--audio2", type=str, default=None, help="Path to query audio (example 2)")
+    parser.add_argument("--prompt2", type=str, default=None, help="Question for query audio (example 2)")
     parsed_args = parser.parse_args()
 
     snapshot_download(repo_id="nvidia/audio-flamingo-2-0.5B", local_dir="./")
@@ -235,7 +296,14 @@ if __name__ == "__main__":
         "num_return_sequences": 1
     }
 
-    if parsed_args.file is not None:
+    few_shot_args = [parsed_args.audio1, parsed_args.prompt1, parsed_args.answ1, parsed_args.audio2, parsed_args.prompt2]
+    if all(a is not None for a in few_shot_args):
+        predict_with_context(
+            parsed_args.audio1, parsed_args.prompt1, parsed_args.answ1,
+            parsed_args.audio2, parsed_args.prompt2,
+            clap_config, inference_kwargs,
+        )
+    elif parsed_args.file is not None:
         predict(parsed_args.file, parsed_args.prompt, clap_config, inference_kwargs)
     else:
         from datasets import Audio, load_dataset
