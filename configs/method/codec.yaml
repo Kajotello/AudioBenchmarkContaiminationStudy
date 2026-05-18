@@ -1,0 +1,6 @@
+_target_: src.methods.codec_method.CoDeCMethod
+num_context_examples: 1
+mode: full           # full | no_audio
+token_range: [10, -1]
+seed: 42
+prompt: null

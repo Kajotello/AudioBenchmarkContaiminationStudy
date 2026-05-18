@@ -308,6 +308,113 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
             tokenizer.padding_side = old_padding_side
 
     @torch.no_grad()
+    def score_text_given_audio_with_context(
+        self,
+        audio: torch.Tensor,
+        target_text: str,
+        context: list[tuple[torch.Tensor | None, str]],
+        prompt: str | None = None,
+        mode: str = "full",
+    ) -> dict[str, Any]:
+        """Score target_text given the target audio plus N in-context (audio, answer) examples.
+
+        Identical return shape to ``score_text_given_audio``. Only the tokens of the
+        FINAL assistant turn are scored.
+        """
+        if mode not in ("full", "no_audio"):
+            raise ValueError(f"mode must be 'full' or 'no_audio', got {mode!r}")
+
+        user_prompt = prompt or "Describe the audio."
+
+        def _user_turn(ctx_audio: torch.Tensor | None, include_audio: bool) -> dict:
+            content: list[dict] = [{"type": "text", "text": user_prompt}]
+            if include_audio and ctx_audio is not None:
+                content.append({"type": "audio", "audio": ctx_audio.numpy()})
+            return {"role": "user", "content": content}
+
+        # Build the in-context demonstrations
+        full_conv: list[dict] = []
+        for ctx_audio, ctx_answer in context:
+            include_audio = (mode == "full") and (ctx_audio is not None)
+            full_conv.append(_user_turn(ctx_audio, include_audio))
+            full_conv.append({"role": "assistant",
+                              "content": [{"type": "text", "text": ctx_answer}]})
+
+        # Target turn — always with target audio
+        full_conv.append({"role": "user", "content": [
+            {"type": "text", "text": user_prompt},
+            {"type": "audio", "audio": audio.numpy()},
+        ]})
+        full_conv.append({"role": "assistant",
+                          "content": [{"type": "text", "text": target_text}]})
+
+        # Prompt-only (no target answer) version, used to locate the label boundary
+        prompt_conv = full_conv[:-1]   # drop the last assistant turn
+
+        full_inputs = self.processor.apply_chat_template(
+            full_conv, tokenize=True, add_generation_prompt=False,
+            return_dict=True, return_tensors="pt",
+        )
+        prompt_inputs = self.processor.apply_chat_template(
+            prompt_conv, tokenize=True, add_generation_prompt=True,
+            return_dict=True, return_tensors="pt",
+        )
+        prompt_len = prompt_inputs["input_ids"].shape[1]
+
+        assert torch.equal(
+            full_inputs["input_ids"][:, :prompt_len],
+            prompt_inputs["input_ids"],
+        ), "Prompt token prefix mismatch — label boundary is wrong"
+
+        device = next(self.model.parameters()).device
+        full_inputs = {k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+                       for k, v in full_inputs.items()}
+        for k, v in full_inputs.items():
+            if isinstance(v, torch.Tensor) and v.is_floating_point():
+                full_inputs[k] = v.to(self._dtype)
+
+        outputs = self.model(**full_inputs)
+        logits = outputs.logits
+
+        shift_logits = logits[:, :-1, :].float()
+        shift_labels = full_inputs["input_ids"][:, 1:]
+
+        target_mask = torch.zeros_like(shift_labels, dtype=torch.bool)
+        target_mask[:, prompt_len - 1:] = True
+
+        target_logits = shift_logits[target_mask]
+        target_labels = shift_labels[target_mask]
+        if target_labels.numel() == 0:
+            raise ValueError("No valid target tokens found for scoring.")
+
+        log_probs = torch.log_softmax(target_logits, dim=-1)
+        probs = log_probs.exp()
+
+        token_log_probs = log_probs.gather(
+            dim=-1, index=target_labels.unsqueeze(-1)
+        ).squeeze(-1)
+
+        mu = (probs * log_probs).sum(dim=-1)
+        entropies = -mu
+        second_moment = (probs * log_probs.pow(2)).sum(dim=-1)
+        var = (second_moment - mu.pow(2)).clamp_min(1e-8)
+        sigma = var.sqrt()
+
+        n = int(token_log_probs.numel())
+        mean_log_prob = float(token_log_probs.mean().item())
+
+        return {
+            "token_log_probs":     token_log_probs.detach().cpu(),
+            "token_entropies":     entropies.detach().cpu(),
+            "token_log_prob_mean": mu.detach().cpu(),
+            "token_log_prob_std":  sigma.detach().cpu(),
+            "mean_log_prob":       mean_log_prob,
+            "mean_nll":           -mean_log_prob,
+            "num_tokens":          n,
+            "sequence_log_prob":   float(token_log_probs.sum().item()),
+        }
+
+    @torch.no_grad()
     def generate(self, audio: torch.Tensor, prompt: str) -> str:
         conversation = [
             {

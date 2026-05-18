@@ -1,0 +1,3 @@
+_target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
+jsonl_path: ./data/CLAPv2__Clotho/train/metadata.jsonl
+sampling_rate: 16000

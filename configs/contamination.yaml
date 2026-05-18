@@ -1,0 +1,29 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - model: audio_flamingo3
+  - method: codec
+  - logger: wandb
+  - paths: default
+  - extras: default
+  - hydra: default
+
+task_name: "contamination"
+tags: ["codec"]
+
+data_member:
+  _target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
+  jsonl_path: ./data/CLAPv2__Clotho/train/metadata.jsonl
+  sampling_rate: 16000
+
+data_non_member:
+  _target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
+  jsonl_path: ./data/CLAPv2__Clotho/validation/metadata.jsonl
+  sampling_rate: 16000
+
+context_pool_size: 50
+max_member_samples: 100
+max_non_member_samples: 100
+batch_size: 1
+seed: 42
