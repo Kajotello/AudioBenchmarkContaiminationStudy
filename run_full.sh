@@ -46,27 +46,27 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-# ── Phase A: main comparison (≈ 2 h) ─────────────────────────────────────────
+# ── Phase A: main comparison (caption_index=1, default hyperparameters) ─────
 for METHOD in yeom_perplexity min_k min_k_pp vl_mia_entropy; do
   python src/eval.py method=$METHOD batch_size=4 \
-      max_member_samples=1000 max_non_member_samples=1000 \
-      tags="[phase_A,$METHOD,default]"
+      max_member_samples=500 max_non_member_samples=500 \
+      tags="[phase_A,$METHOD,patched]"
 done
 
+# ── Phase B: hyperparameter sweeps (caption_index=1) ────────────────────────
 python src/eval.py -m method=min_k     method.k_pct=10,20,30,40,50 batch_size=4 \
     max_member_samples=500 max_non_member_samples=500 \
-    tags='[phase_B,min_k,sweep]'
+    tags='[phase_B,min_k,sweep,patched]'
 
 python src/eval.py -m method=min_k_pp  method.k_pct=10,20,30,40,50 batch_size=4 \
     max_member_samples=500 max_non_member_samples=500 \
-    tags='[phase_B,min_k_pp,sweep]'
+    tags='[phase_B,min_k_pp,sweep,patched]'
 
 python src/eval.py -m method=vl_mia_entropy method.top_pct=10,20,30,40,50 batch_size=4 \
     max_member_samples=500 max_non_member_samples=500 \
-    tags='[phase_B,vl_mia,sweep]'
+    tags='[phase_B,vl_mia,sweep,patched]'
 
-# ── Phase C: caption robustness for one strong method (≈ 1.5 h) ──────────────
-# Pick the strongest Phase A method here; using min_k_pp as a placeholder.
+# ── Phase C: caption robustness for min_k_pp (patched dataset) ──────────────
 for CAP in 2 3 4 5; do
   python src/eval.py method=min_k_pp batch_size=4 \
       data_member.caption_index=$CAP data_non_member.caption_index=$CAP \

@@ -46,12 +46,11 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-# Step C: same Yeom run at batch_size=4 — only proceed if scores ~match Step B
-python src/eval.py method=yeom_perplexity batch_size=4 \
-    max_member_samples=4 max_non_member_samples=4
+python src/eval.py method=min_k_pp batch_size=4 \
+    max_member_samples=100 max_non_member_samples=100 \
+    tags="[smoke,patched,caption_1]"
 
-# Step D: one of each new method at small scale
-python src/eval.py method=min_k        batch_size=4 max_member_samples=8 max_non_member_samples=8
-python src/eval.py method=min_k_pp     batch_size=4 max_member_samples=8 max_non_member_samples=8
-python src/eval.py method=vl_mia_entropy  batch_size=4 max_member_samples=8 max_non_member_samples=8
-# (or method=vl_mia_entropy if you went with Option A)
+python src/eval.py method=min_k_pp batch_size=4 \
+    data_member.caption_index=5 data_non_member.caption_index=5 \
+    max_member_samples=100 max_non_member_samples=100 \
+    tags="[smoke,patched,caption_5]"

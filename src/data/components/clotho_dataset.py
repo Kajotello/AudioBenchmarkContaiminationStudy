@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import torch
 from datasets import Audio, load_dataset
 
 from src.data.base_audio_text_dataset import BaseAudioTextDataset
+
+_CAPTION_SPLIT = re.compile(r"\.\s+")
+
+
+def _captions_from_text(text: str) -> list[str]:
+    """Parse Clotho's period-joined `text` field back into individual captions."""
+    return [p.strip() for p in _CAPTION_SPLIT.split(text.rstrip(".")) if p.strip()]
 
 
 class ClothoAudioTextDataset(BaseAudioTextDataset):
@@ -18,13 +26,6 @@ class ClothoAudioTextDataset(BaseAudioTextDataset):
         caption_index: int = 1,
         sampling_rate: int | None = None,
     ) -> None:
-        """
-        Args:
-            split: Dataset split, e.g. 'train', 'validation', 'test'.
-            dataset_id: Hugging Face dataset identifier.
-            caption_index: Which caption to use from caption_1..caption_5.
-            sampling_rate: Optional output sampling rate for decoded audio.
-        """
         if caption_index < 1 or caption_index > 5:
             raise ValueError("caption_index must be in [1, 5].")
 
@@ -33,14 +34,21 @@ class ClothoAudioTextDataset(BaseAudioTextDataset):
         self.caption_index = caption_index
         self.sampling_rate = sampling_rate
 
+        raw = load_dataset(self.dataset_id, split=self.split)
 
-        self._data = load_dataset(self.dataset_id, split=self.split)
+        # raw_text is empty in this dataset upload, so captions must come from
+        # the period-joined `text` field. Keep only samples that recover all 5
+        # captions cleanly — this makes every caption_index in [1, 5] valid on
+        # every retained sample, so the Phase C comparison is apples-to-apples.
+        raw = raw.filter(
+            lambda x: len(_captions_from_text(x["text"])) == 5,
+            desc=f"Filtering {self.split} to 5-caption samples",
+        )
 
-        # Ensure audio is decoded to arrays and optionally resampled.
         if self.sampling_rate is None:
-            self._data = self._data.cast_column("audio", Audio())
+            self._data = raw.cast_column("audio", Audio())
         else:
-            self._data = self._data.cast_column("audio", Audio(sampling_rate=self.sampling_rate))
+            self._data = raw.cast_column("audio", Audio(sampling_rate=self.sampling_rate))
 
     def __len__(self) -> int:
         return len(self._data)
@@ -49,12 +57,9 @@ class ClothoAudioTextDataset(BaseAudioTextDataset):
         sample: dict[str, Any] = self._data[idx]
         audio_feature = sample["audio"]
 
-        audio_array = audio_feature["array"]
-        audio_tensor = torch.tensor(audio_array, dtype=torch.float32)
-
+        audio_tensor = torch.tensor(audio_feature["array"], dtype=torch.float32)
         if audio_tensor.ndim > 1:
-            # Keep the base interface simple by returning mono waveform.
             audio_tensor = audio_tensor.mean(dim=-1)
 
-        description = sample["text"].split('.')[self.caption_index - 1]
-        return audio_tensor, description
+        captions = _captions_from_text(sample["text"])
+        return audio_tensor, captions[self.caption_index - 1]
