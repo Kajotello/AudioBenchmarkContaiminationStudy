@@ -46,41 +46,29 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-# ── AudioSet Phase A: FULL members (balanced, 10000/10000) ──────────────
+# ── AudioCaps Phase A: FULL members (balanced max 6630/6630, non-member=val+test) ──
 for METHOD in yeom_perplexity min_k min_k_pp vl_mia_entropy; do
   python src/eval.py method=$METHOD \
-      data_member=audioset data_non_member=audioset \
-      batch_size=16 max_member_samples=10000 max_non_member_samples=10000 \
-      tags="[audioset_A_full,$METHOD]"
+      data_member=audiocaps data_non_member=audiocaps \
+      data_non_member.split=validation+test \
+      batch_size=16 max_member_samples=6630 max_non_member_samples=6630 \
+      tags="[audiocaps_A_full,$METHOD]"
 done
 
-# ── AudioSet Phase B: coarse sweep (3 points), high N (3000/3000) ───────────
+# ── AudioCaps Phase B: coarse sweep (3 points), high N (3000/3000) ──────────
 # k_pct=20 already comes from Phase A at full N, so we sweep 10/30/50.
 python src/eval.py -m method=min_k     method.k_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
+    data_member=audiocaps data_non_member=audiocaps \
+    data_non_member.split=validation+test \
     batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,min_k,sweep]'
+    tags='[audiocaps_B,min_k,sweep]'
 python src/eval.py -m method=min_k_pp  method.k_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
+    data_member=audiocaps data_non_member=audiocaps \
+    data_non_member.split=validation+test \
     batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,min_k_pp,sweep]'
+    tags='[audiocaps_B,min_k_pp,sweep]'
 python src/eval.py -m method=vl_mia_entropy method.top_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
+    data_member=audiocaps data_non_member=audiocaps \
+    data_non_member.split=validation+test \
     batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,vl_mia,sweep]'
-
-# ── AudioSet Phase C: template robustness (3 templates), high N (3000/3000) ─
-declare -a TEMPLATES=(
-  '{labels}'
-  'Sounds of {labels}.'
-  'This audio contains: {labels}.'
-)
-for i in "${!TEMPLATES[@]}"; do
-  TPL="${TEMPLATES[$i]}"
-  python src/eval.py method=min_k_pp \
-      data_member=audioset data_non_member=audioset \
-      "data_member.label_template=\"$TPL\"" \
-      "data_non_member.label_template=\"$TPL\"" \
-      batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-      tags="[audioset_C,min_k_pp,template_$i]"
-done
+    tags='[audiocaps_B,vl_mia,sweep]'

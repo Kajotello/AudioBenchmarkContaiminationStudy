@@ -1,0 +1,5 @@
+# @package data_non_member
+_target_: src.data.components.audiocaps_dataset.AudioCapsAudioTextDataset
+split: test
+dataset_id: OpenSound/AudioCaps
+sampling_rate: 16000

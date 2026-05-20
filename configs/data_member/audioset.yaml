@@ -1,0 +1,8 @@
+# @package data_member
+_target_: src.data.components.audioset_dataset.AudioSetAudioTextDataset
+split: train
+dataset_id: agkphysics/AudioSet
+config_name: balanced
+sampling_rate: 16000
+label_template: "{labels}"
+label_separator: ", "
