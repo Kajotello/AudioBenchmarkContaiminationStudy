@@ -1,4 +1,11 @@
 from src.data.base_audio_text_dataset import BaseAudioTextDataset
+from src.data.components.audiocaps_dataset import AudioCapsAudioTextDataset
+from src.data.components.audioset_dataset import AudioSetAudioTextDataset
 from src.data.components.clotho_dataset import ClothoAudioTextDataset
 
-__all__ = ["BaseAudioTextDataset", "ClothoAudioTextDataset"]
+__all__ = [
+    "BaseAudioTextDataset",
+    "ClothoAudioTextDataset",
+    "AudioSetAudioTextDataset",
+    "AudioCapsAudioTextDataset",
+]

@@ -46,11 +46,9 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-python src/eval.py method=min_k_pp batch_size=4 \
-    max_member_samples=100 max_non_member_samples=100 \
-    tags="[smoke,patched,caption_1]"
-
-python src/eval.py method=min_k_pp batch_size=4 \
-    data_member.caption_index=5 data_non_member.caption_index=5 \
-    max_member_samples=100 max_non_member_samples=100 \
-    tags="[smoke,patched,caption_5]"
+# AudioCaps smoke (member=train, non-member=validation)
+python src/eval.py method=min_k_pp \
+    data_member=audiocaps data_non_member=audiocaps \
+    data_non_member.split=validation \
+    batch_size=4 max_member_samples=100 max_non_member_samples=100 \
+    tags="[smoke,audiocaps,min_k_pp,val]"
