@@ -1,6 +1,8 @@
 # @package data_non_member
 _target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
-jsonl_path: ./data/CLAPv2__Clotho/validation/metadata.jsonl
+dataset_name: CLAPv2__Clotho
+split: validation
+data_dir: ${paths.data_dir}
 sampling_rate: 16000
 caption_index: 1
 require_num_captions: 5

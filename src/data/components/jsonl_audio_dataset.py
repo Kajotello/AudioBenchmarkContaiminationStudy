@@ -10,6 +10,18 @@ import torch
 from src.data.base_audio_text_dataset import BaseAudioTextDataset
 
 
+def jsonl_path_for_split(
+    dataset_name: str,
+    split: str,
+    data_dir: str | Path = "./data",
+) -> Path:
+    """``<data_dir>/<dataset_name>/<split>/metadata.jsonl``
+
+    ``dataset_name`` may include subdirs (e.g. ``agkphysics__AudioSet/balanced``).
+    """
+    return Path(data_dir) / dataset_name / split / "metadata.jsonl"
+
+
 class JsonlAudioDataset(BaseAudioTextDataset):
     """Audio+text dataset backed by a JSONL index + local WAV files.
 
@@ -47,7 +59,9 @@ class JsonlAudioDataset(BaseAudioTextDataset):
 
     def __init__(
         self,
-        jsonl_path: str,
+        dataset_name: str,
+        split: str,
+        data_dir: str | Path = "./data",
         sampling_rate: int | None = 16000,
         caption_index: int = 1,
         require_num_captions: int | None = None,
@@ -57,6 +71,7 @@ class JsonlAudioDataset(BaseAudioTextDataset):
         if caption_index < 1:
             raise ValueError(f"caption_index must be >= 1, got {caption_index}")
 
+        jsonl_path = jsonl_path_for_split(dataset_name, split, data_dir)
         self.jsonl_path = Path(jsonl_path).resolve()
         if not self.jsonl_path.exists():
             raise FileNotFoundError(f"JSONL not found: {self.jsonl_path}")
