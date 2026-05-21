@@ -1,16 +1,37 @@
 #!/usr/bin/env python3
 """Download a HuggingFace audio-text dataset to local WAV files + JSONL index.
 
-Output layout:
-    <output_dir>/<dataset_safe_id>/<split>/audio/000000.wav ...
-    <output_dir>/<dataset_safe_id>/<split>/metadata.jsonl
+Fetch-once: every dataset is materialised to disk a single time, then the single
+``JsonlAudioDataset`` wrapper (and therefore the models) reads purely from the
+local filesystem -- no per-run HuggingFace access, exactly like the AF2 path.
 
-Each JSONL record: {"index": N, "audio": "<rel_path>", "text": "<gt>"}
+Output layout:
+    <output_dir>/<dataset_safe_id>/[<config_name>/]<split>/audio/000000.wav ...
+    <output_dir>/<dataset_safe_id>/[<config_name>/]<split>/metadata.jsonl
+
+Each JSONL record always has ``index``, ``audio``, ``text`` (best-effort human
+readable) plus ONE structured field that lets the wrapper reproduce the original
+dataset class's text logic without re-touching HuggingFace:
+
+    clotho     -> "captions": [<5 captions>]   (period-joined `text` re-split)
+    audiocaps  -> "captions": [<1 caption>]    (the `caption` column)
+    audioset   -> "labels":   [<human labels>] (verbalised at load time)
+
+Caption/label construction stays at *load* time in JsonlAudioDataset, so the
+caption_index / require_num_captions / label_template knobs remain in config.
+
+See ``--caption-mode``:
+  - clotho    : split the period-joined text column on r"\\.\\s+"
+  - audiocaps : use the caption column verbatim as a single caption
+  - audioset  : store the human-label list (verbalised by the wrapper)
+  - single    : treat the text column as a single caption (no splitting)
+  - raw       : use a list-typed column (e.g. `raw_text`) directly
+  - auto      : infer from dataset_id (clotho / audiocaps / audioset), else single
 """
 
 import argparse
 import json
-import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -18,66 +39,137 @@ import soundfile as sf
 from datasets import Audio, load_dataset
 from tqdm import tqdm
 
+# Identical to ClothoAudioTextDataset so member/non-member text matches exactly.
+_CAPTION_SPLIT = re.compile(r"\.\s+")
+
 
 def safe_id(dataset_id: str) -> str:
     return dataset_id.replace("/", "__")
 
 
-def get_text(sample: dict, text_col: str) -> str:
-    val = sample[text_col]
+def _clotho_captions(text: str) -> list[str]:
+    return [p.strip() for p in _CAPTION_SPLIT.split(text.rstrip(".")) if p.strip()]
+
+
+def resolve_caption_mode(mode: str, dataset_id: str) -> str:
+    if mode != "auto":
+        return mode
+    did = dataset_id.lower()
+    if "clotho" in did:
+        return "clotho"
+    if "audiocaps" in did:
+        return "audiocaps"
+    if "audioset" in did:
+        return "audioset"
+    return "single"
+
+
+def extract_text_fields(sample: dict, mode: str, cols: argparse.Namespace) -> dict:
+    """Return the text-bearing JSONL fields for one sample (no audio)."""
+    if mode == "clotho":
+        text = str(sample[cols.text_col])
+        return {"text": text, "captions": _clotho_captions(text)}
+
+    if mode == "audiocaps":
+        cap = str(sample[cols.caption_col]).strip()
+        return {"text": cap, "captions": [cap]}
+
+    if mode == "audioset":
+        labels = [str(x).strip() for x in sample[cols.labels_col] if str(x).strip()]
+        return {"text": ", ".join(labels), "labels": labels}
+
+    if mode == "raw":
+        raw = sample.get(cols.raw_text_col) or []
+        caps = [str(c).strip() for c in raw if str(c).strip()]
+        return {"text": caps[0] if caps else "", "captions": caps}
+
+    # single
+    val = sample[cols.text_col]
     if isinstance(val, list):
-        return val[0]
-    # dot-joined captions (CLAPv2/Clotho `text` column) — take first
-    return str(val).split(".")[0].strip()
+        caps = [str(c).strip() for c in val if str(c).strip()]
+    else:
+        caps = [str(val).strip()]
+    return {"text": caps[0] if caps else "", "captions": caps}
+
+
+def split_dir_for(output_dir: Path, dataset_id: str,
+                  config_name: str | None, split: str) -> Path:
+    base = output_dir / safe_id(dataset_id)
+    if config_name:
+        base = base / config_name
+    return base / split
 
 
 def process_split(
     dataset_id: str,
+    config_name: str | None,
     split: str,
     audio_col: str,
-    text_col: str,
+    caption_mode: str,
+    cols: argparse.Namespace,
     sample_rate: int,
     output_dir: Path,
     repo_root: Path,
 ) -> None:
-    split_dir = output_dir / safe_id(dataset_id) / split
+    split_dir = split_dir_for(output_dir, dataset_id, config_name, split)
     audio_dir = split_dir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = split_dir / "metadata.jsonl"
 
-    # Find already-written indices to support idempotent re-runs
+    # Idempotent: skip WAVs that already exist; always rebuild the JSONL fresh
+    # (overwrite, never append) so re-runs can't duplicate records and can
+    # refresh the caption/label fields in place.
     existing = {int(p.stem) for p in audio_dir.glob("*.wav")}
 
-    ds = load_dataset(dataset_id, split=split)
-    ds = ds.cast_column(audio_col, Audio(sampling_rate=sample_rate))
+    ds = (load_dataset(dataset_id, config_name, split=split)
+          if config_name else load_dataset(dataset_id, split=split))
 
+    # Fast path: if every WAV already exists, decode=False makes the rebuild a
+    # cheap text-only pass (no audio decoding). Otherwise decode for writing.
+    n = len(ds)
+    need_write = not all(i in existing for i in range(n))
+    ds = ds.cast_column(audio_col, Audio(sampling_rate=sample_rate, decode=need_write))
+
+    records: list[dict] = []
     written = 0
-    with jsonl_path.open("a") as jf:
-        for idx, sample in enumerate(tqdm(ds, desc=f"{split}", unit="sample")):
-            wav_path = audio_dir / f"{idx:06d}.wav"
+    for idx, sample in enumerate(tqdm(ds, desc=split, unit="sample")):
+        wav_path = audio_dir / f"{idx:06d}.wav"
 
-            if idx not in existing:
-                audio = sample[audio_col]
-                arr = np.array(audio["array"], dtype=np.float32)
-                if arr.ndim > 1:
-                    arr = arr.mean(axis=-1)
-                sf.write(str(wav_path), arr, sample_rate, subtype="FLOAT")
-                written += 1
+        if need_write and idx not in existing:
+            arr = np.array(sample[audio_col]["array"], dtype=np.float32)
+            if arr.ndim > 1:
+                arr = arr.mean(axis=-1)
+            sf.write(str(wav_path), arr, sample_rate, subtype="FLOAT")
+            written += 1
 
-            text = get_text(sample, text_col)
-            rel_path = str(wav_path.relative_to(repo_root))
-            jf.write(json.dumps({"index": idx, "audio": rel_path, "text": text}) + "\n")
+        rec = {"index": idx, "audio": str(wav_path.relative_to(repo_root))}
+        rec.update(extract_text_fields(sample, caption_mode, cols))
+        records.append(rec)
 
-    print(f"  [{split}] {written} new WAVs written → {split_dir}")
+    with jsonl_path.open("w", encoding="utf-8") as jf:
+        for rec in records:
+            jf.write(json.dumps(rec) + "\n")
+
+    print(f"  [{split}] {written} new WAVs, {len(records)} records "
+          f"(mode={caption_mode}) -> {split_dir}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", default="CLAPv2/Clotho")
+    parser.add_argument("--config-name", default=None,
+                        help="HF dataset config (e.g. 'balanced' for AudioSet)")
     parser.add_argument("--split", default="train,validation,test",
                         help="Comma-separated splits")
     parser.add_argument("--audio-col", default="audio")
-    parser.add_argument("--text-col", default="text")
+    parser.add_argument("--caption-mode", default="auto",
+                        choices=["auto", "clotho", "audiocaps", "audioset",
+                                 "single", "raw"])
+    # column names per mode
+    parser.add_argument("--text-col", default="text")            # clotho / single
+    parser.add_argument("--caption-col", default="caption")      # audiocaps
+    parser.add_argument("--labels-col", default="human_labels")  # audioset
+    parser.add_argument("--raw-text-col", default="raw_text")    # raw
     parser.add_argument("--sample-rate", type=int, default=16000)
     parser.add_argument("--output-dir", "-b", default="./data",
                         help="Base output directory (default: ./data)")
@@ -86,17 +178,22 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     output_dir = (repo_root / args.output_dir).resolve()
     splits = [s.strip() for s in args.split.split(",")]
+    caption_mode = resolve_caption_mode(args.caption_mode, args.dataset_id)
 
-    print(f"Dataset : {args.dataset_id}")
-    print(f"Splits  : {splits}")
-    print(f"Output  : {output_dir}")
+    print(f"Dataset      : {args.dataset_id}"
+          + (f" ({args.config_name})" if args.config_name else ""))
+    print(f"Splits       : {splits}")
+    print(f"Caption mode : {caption_mode}")
+    print(f"Output       : {output_dir}")
 
     for split in splits:
         process_split(
             dataset_id=args.dataset_id,
+            config_name=args.config_name,
             split=split,
             audio_col=args.audio_col,
-            text_col=args.text_col,
+            caption_mode=caption_mode,
+            cols=args,
             sample_rate=args.sample_rate,
             output_dir=output_dir,
             repo_root=repo_root,

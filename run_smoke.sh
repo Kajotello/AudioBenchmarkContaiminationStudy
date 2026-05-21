@@ -46,9 +46,31 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-# AudioCaps smoke (member=train, non-member=validation)
-python src/eval.py method=min_k_pp \
-    data_member=audiocaps data_non_member=audiocaps \
-    data_non_member.split=validation \
-    batch_size=4 max_member_samples=100 max_non_member_samples=100 \
-    tags="[smoke,audiocaps,min_k_pp,val]"
+# SMOKE="max_member_samples=2 max_non_member_samples=2 batch_size=2"
+
+# # MIA eval: every method × every dataset (AF3)
+# for DATA in clotho audiocaps audioset; do
+#   for METHOD in yeom_perplexity min_k min_k_pp vl_mia_entropy; do
+#     python src/eval_mia.py \
+#         model=audio_flamingo3 method=$METHOD \
+#         data_member=$DATA data_non_member=$DATA \
+#         $SMOKE tags="[smoke,mia,$DATA,$METHOD]"
+#   done
+# done
+
+python src/contamination.py \
+    model=audio_flamingo3 method=codec method.mode=no_audio \
+    context_pool_size=4 \
+    max_member_samples=2 max_non_member_samples=2 batch_size=1 \
+    tags="[smoke,codec,no_audio]"
+
+# --- OPTIONAL: AF2 wrapper sanity. Run ONLY under the AF2 env
+# --- (py310_af2_env); will fail under py311_env.
+# python src/eval_mia.py model=audio_flamingo2 method=min_k_pp \
+#     data_member=clotho data_non_member=clotho $SMOKE \
+#     tags="[smoke,mia,af2]"
+# python src/contamination.py model=audio_flamingo2 method=codec method.mode=full \
+#     context_pool_size=4 max_member_samples=2 max_non_member_samples=2 batch_size=1 \
+#     tags="[smoke,codec,af2]"
+
+echo "[run_smoke] all smoke runs completed OK"

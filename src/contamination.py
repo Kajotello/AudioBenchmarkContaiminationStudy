@@ -19,7 +19,7 @@ from omegaconf import DictConfig
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-from src.eval import (
+from src.eval_mia import (
     _compute_best_threshold_accuracy,
     _compute_roc_auc,
     _score_dataset,

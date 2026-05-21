@@ -1,6 +1,6 @@
 # @package data_member
-_target_: src.data.components.clotho_dataset.ClothoAudioTextDataset
-split: train
-dataset_id: CLAPv2/Clotho
-caption_index: 1
+_target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
+jsonl_path: ./data/CLAPv2__Clotho/train/metadata.jsonl
 sampling_rate: 16000
+caption_index: 1
+require_num_captions: 5

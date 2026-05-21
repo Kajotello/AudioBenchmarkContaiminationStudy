@@ -46,41 +46,60 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 
-# ── AudioSet Phase A: FULL members (balanced, 10000/10000) ──────────────
-for METHOD in yeom_perplexity min_k min_k_pp vl_mia_entropy; do
-  python src/eval.py method=$METHOD \
-      data_member=audioset data_non_member=audioset \
-      batch_size=16 max_member_samples=10000 max_non_member_samples=10000 \
-      tags="[audioset_A_full,$METHOD]"
+declare -A MAX_N=( [clotho]=100000 [audiocaps]=6630 [audioset]=10000 )
+
+# Full MIA battery: every method × every dataset (AF3)
+for DATA in clotho audiocaps audioset; do
+  N=${MAX_N[$DATA]}
+  for METHOD in yeom_perplexity min_k min_k_pp vl_mia_entropy; do
+    echo "=== full MIA: $DATA / $METHOD (N=$N) ==="
+    python src/eval_mia.py \
+        model=audio_flamingo3 method=$METHOD \
+        data_member=$DATA data_non_member=$DATA \
+        batch_size=16 max_member_samples=$N max_non_member_samples=$N \
+        tags="[full,mia,$DATA,$METHOD]"
+  done
 done
 
-# ── AudioSet Phase B: coarse sweep (3 points), high N (3000/3000) ───────────
-# k_pct=20 already comes from Phase A at full N, so we sweep 10/30/50.
-python src/eval.py -m method=min_k     method.k_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
-    batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,min_k,sweep]'
-python src/eval.py -m method=min_k_pp  method.k_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
-    batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,min_k_pp,sweep]'
-python src/eval.py -m method=vl_mia_entropy method.top_pct=10,30,50 \
-    data_member=audioset data_non_member=audioset \
-    batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-    tags='[audioset_B,vl_mia,sweep]'
+# k%/top% sweeps (multirun) on every dataset
+for DATA in clotho audiocaps audioset; do
+  N=${MAX_N[$DATA]}
+  python src/eval_mia.py -m model=audio_flamingo3 \
+      method=min_k method.k_pct=10,30,50 \
+      data_member=$DATA data_non_member=$DATA \
+      batch_size=16 max_member_samples=$N max_non_member_samples=$N \
+      tags="[full,sweep,$DATA,min_k]"
+  python src/eval_mia.py -m model=audio_flamingo3 \
+      method=min_k_pp method.k_pct=10,30,50 \
+      data_member=$DATA data_non_member=$DATA \
+      batch_size=16 max_member_samples=$N max_non_member_samples=$N \
+      tags="[full,sweep,$DATA,min_k_pp]"
+  python src/eval_mia.py -m model=audio_flamingo3 \
+      method=vl_mia_entropy method.top_pct=10,30,50 \
+      data_member=$DATA data_non_member=$DATA \
+      batch_size=16 max_member_samples=$N max_non_member_samples=$N \
+      tags="[full,sweep,$DATA,vl_mia]"
+done
 
-# ── AudioSet Phase C: template robustness (3 templates), high N (3000/3000) ─
-declare -a TEMPLATES=(
-  '{labels}'
-  'Sounds of {labels}.'
-  'This audio contains: {labels}.'
-)
+# AudioSet label-template robustness (Phase C)
+declare -a TEMPLATES=( '{labels}' 'Sounds of {labels}.' 'This audio contains: {labels}.' )
 for i in "${!TEMPLATES[@]}"; do
   TPL="${TEMPLATES[$i]}"
-  python src/eval.py method=min_k_pp \
+  python src/eval_mia.py model=audio_flamingo3 method=min_k_pp \
       data_member=audioset data_non_member=audioset \
       "data_member.label_template=\"$TPL\"" \
       "data_non_member.label_template=\"$TPL\"" \
-      batch_size=16 max_member_samples=3000 max_non_member_samples=3000 \
-      tags="[audioset_C,min_k_pp,template_$i]"
+      batch_size=16 max_member_samples=${MAX_N[audioset]} max_non_member_samples=${MAX_N[audioset]} \
+      tags="[full,audioset_C,template_$i]"
 done
+
+# Contamination (CoDeC): both modes (AF3, Clotho)
+for MODE in full no_audio; do
+  python src/contamination.py \
+      model=audio_flamingo3 method=codec method.mode=$MODE \
+      context_pool_size=50 \
+      max_member_samples=${MAX_N[clotho]} max_non_member_samples=${MAX_N[clotho]} \
+      batch_size=1 tags="[full,codec,$MODE]"
+done
+
+echo "[run_full] all full runs completed OK"
