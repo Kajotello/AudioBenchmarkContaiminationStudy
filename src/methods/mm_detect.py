@@ -22,11 +22,14 @@ from typing import Any
 
 import torch
 
-from src.methods.base_method import MethodBaseClass
 from src.models.base_AL_model import BaseAudioLanguageModel
 
 
-class MMDetectMethod(MethodBaseClass):
+class MMDetectMethod:
+    """MM-DETECT does not use ``MethodBaseClass.run`` (perplexity scoring).
+
+    Evaluation goes through ``run_on_dataset`` with slot-guessing via ``generate``.
+    """
     def __init__(self, prompt_template: str | None = None) -> None:
         """
         Args:
@@ -45,8 +48,7 @@ class MMDetectMethod(MethodBaseClass):
         back_masked: str,
     ) -> tuple[bool, bool]:
         """
-        Note: The signature differs slightly from MethodBaseClass to accommodate 
-        the paired original/perturbed texts required by MM-DETECT.
+        Compare exact-match slot guesses on original vs. back-translated masked captions.
         """
         # Format the prompts wrapping the masked texts
         prompt_orig = self.prompt_template.format(caption=orig_masked)

@@ -64,18 +64,18 @@ export PROJECT_ROOT="$PROJECT_DIR"
 #   done
 # done
 
-python src/contamination.py \
-    model=audio_flamingo3 method=codec method.mode=no_audio \
-    context_pool_size=4 \
-    max_member_samples=2 max_non_member_samples=2 batch_size=1 \
-    tags="[smoke,codec,no_audio]"
+# python src/contamination.py \
+#     model=audio_flamingo3 method=codec method.mode=no_audio \
+#     context_pool_size=4 \
+#     max_member_samples=2 max_non_member_samples=2 batch_size=1 \
+#     tags="[smoke,codec,no_audio]"
 
 # MM-DETECT (2 samples/split; needs back-translated JSONL — see run_mm_detect_smoke.sh)
-# python -m src.eval_mm_detect \
-#     model=audio_flamingo3 method=mm_detect \
-#     data_member=mm_detect_clotho data_non_member=mm_detect_clotho \
-#     max_member_samples=2 max_non_member_samples=2 \
-#     tags="[smoke,mm_detect]"
+python src/eval_mm_detect.py \
+    model=audio_flamingo3 method=mm_detect \
+    data_member=mm_detect_clotho data_non_member=mm_detect_clotho \
+    max_member_samples=2 max_non_member_samples=2 \
+    tags="[smoke,mm_detect]"
 
 # --- OPTIONAL: AF2 wrapper sanity. Run ONLY under the AF2 env
 # --- (py310_af2_env); will fail under py311_env.
