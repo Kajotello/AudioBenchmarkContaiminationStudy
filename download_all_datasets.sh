@@ -36,14 +36,16 @@ log "=== CLAPv2/Clotho ==="
 python "$DOWNLOAD" \
     --dataset-id CLAPv2/Clotho \
     --caption-mode clotho \
-    --split train,validation
+    --split train,validation \
+    --back-translate
 
 # --- AudioCaps (OpenSound/AudioCaps): member=train, non-member=test --------
 log "=== OpenSound/AudioCaps ==="
 python "$DOWNLOAD" \
     --dataset-id OpenSound/AudioCaps \
     --caption-mode audiocaps \
-    --split train,test
+    --split train,test \
+    --back-translate
 
 # --- AudioSet (agkphysics/AudioSet, balanced): member=train, non-member=test
 log "=== agkphysics/AudioSet (balanced) ==="

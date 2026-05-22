@@ -41,11 +41,14 @@ import json
 import re
 import sys
 from pathlib import Path
+import random
+
 
 import numpy as np
 import soundfile as sf
 from datasets import Audio, load_dataset
 from tqdm import tqdm
+import spacy
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -55,6 +58,8 @@ from nllb_backtranslate import NllbRoundTripTranslator
 
 # Identical to ClothoAudioTextDataset so member/non-member text matches exactly.
 _CAPTION_SPLIT = re.compile(r"\.\s+")
+nlp = spacy.load("en_core_web_sm")
+random.seed(42)
 
 
 def safe_id(dataset_id: str) -> str:
@@ -111,6 +116,24 @@ def translatable_strings(fields: dict, caption_mode: str) -> list[str]:
     if caption_mode == "audioset":
         return list(fields.get("labels") or [])
     return list(fields.get("captions") or [])
+
+
+def extract_keywords(text: str) -> list[str]:
+    doc = nlp(text)
+    # Extract Nouns (NN), Adjectives (JJ), and Verbs (VB)
+    return [token.text for token in doc if token.pos_ in ["NOUN", "ADJ", "VERB"]]
+
+def apply_independent_masking(original_text: str, back_translated_text: str):
+    orig_keywords = extract_keywords(original_text)
+    back_keywords = extract_keywords(back_translated_text)
+
+    orig_target = random.choice(orig_keywords) if orig_keywords else None
+    back_target = random.choice(back_keywords) if back_keywords else None
+    
+    masked_orig = original_text.replace(orig_target, "[MASK]", 1) if orig_target else None
+    masked_back = back_translated_text.replace(back_target, "[MASK]", 1) if back_target else None
+    
+    return masked_orig, orig_target, masked_back, back_target
 
 
 def attach_back_translated(
@@ -206,6 +229,26 @@ def process_split(
 
     if translator is not None:
         add_back_translations(records, caption_mode, translator)
+    
+    for rec in records:
+        masked_origins = list()
+        masked_backs = list()
+        origin_targets = list()
+        back_targets = list()
+
+        for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_captions']):
+            masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
+            masked_origins.append(masked_orig)
+            masked_backs.append(masked_back)
+            origin_targets.append(orig_target)
+            back_targets.append(back_target)
+        
+        rec['masked_orginal_captions'] = masked_origins
+        rec['masked_targets_original'] = origin_targets
+
+        rec['masked_back_captions'] = masked_backs
+        rec['masked_targets_back'] = back_targets
+        
 
     with jsonl_path.open("w", encoding="utf-8") as jf:
         for rec in records:
