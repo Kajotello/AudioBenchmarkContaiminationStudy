@@ -1,8 +1,23 @@
-# --------- pytorch --------- #
-torch>=2.0.0
-torchvision>=0.15.0
+# Install with setup_env.sh (adds cu128 + NVIDIA indexes) or:
+#   pip install --extra-index-url https://download.pytorch.org/whl/cu128 \
+#               --extra-index-url https://pypi.nvidia.com -r requirements.txt
+
+# --------- pytorch (CUDA 12.8 — match Athena module load CUDA/12.8) --------- #
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+torchaudio==2.11.0+cu128
+torchcodec==0.11.1+cu128
 lightning>=2.0.0
 torchmetrics>=0.11.4
+
+# --------- huggingface / audio --------- #
+transformers>=5.0.0
+accelerate>=0.30.0
+peft>=0.10.0
+datasets>=2.19.0
+huggingface_hub>=0.20.0
+librosa>=0.10.0
+soundfile>=0.12.1
 
 # --------- hydra --------- #
 hydra-core==1.3.2
@@ -21,5 +36,4 @@ rootutils       # standardizing the project root setup
 pre-commit      # hooks for applying linters on commit
 rich            # beautiful text formatting in terminal
 pytest          # tests
-datasets        # Hugging Face datasets (e.g., CLAPv2/Clotho)
 # sh            # for running bash commands in some tests (linux/macos only)
