@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - model: audio_flamingo3
+  - method: mm_detect
+  - logger: wandb
+  - paths: default
+  - extras: default
+  - hydra: default
+  - data_member: mm_detect_clotho
+  - data_non_member: mm_detect_clotho
+
+task_name: "mm_detect"
+tags: ["mm_detect"]
+
+max_member_samples: 100
+max_non_member_samples: 100
