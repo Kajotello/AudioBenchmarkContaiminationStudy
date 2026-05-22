@@ -102,6 +102,11 @@ def extract_text_fields(sample: dict, mode: str, cols: argparse.Namespace) -> di
         caps = [str(c).strip() for c in raw if str(c).strip()]
         return {"text": caps[0] if caps else "", "captions": caps}
 
+    if mode == "qa":
+        question = str(sample[cols.question_col]).strip()
+        answer = str(sample[cols.answer_col]).strip()
+        return {"question": question, "answer": answer, "text": answer, "captions": [answer]}
+
     # single
     val = sample[cols.text_col]
     if isinstance(val, list):
@@ -113,6 +118,8 @@ def extract_text_fields(sample: dict, mode: str, cols: argparse.Namespace) -> di
 
 def translatable_strings(fields: dict, caption_mode: str) -> list[str]:
     """Source strings for round-trip translation (one entry per caption/label)."""
+    if caption_mode == "qa":
+        return []
     if caption_mode == "audioset":
         return list(fields.get("labels") or [])
     return list(fields.get("captions") or [])
@@ -220,7 +227,13 @@ def process_split(
             arr = np.array(sample[audio_col]["array"], dtype=np.float32)
             if arr.ndim > 1:
                 arr = arr.mean(axis=-1)
-            sf.write(str(wav_path), arr, sample_rate, subtype="FLOAT")
+            try:
+                sf.write(str(wav_path), arr, sample_rate, subtype="FLOAT")
+            except sf.LibsndfileError:
+                # libsndfile spuriously raises error code -1 on close() even
+                # when the write succeeded; verify the file exists before ignoring.
+                if not (wav_path.exists() and wav_path.stat().st_size > 0):
+                    raise
             written += 1
 
         rec = {"index": idx, "audio": str(wav_path.relative_to(repo_root))}
@@ -229,26 +242,26 @@ def process_split(
 
     if translator is not None:
         add_back_translations(records, caption_mode, translator)
-    
-    for rec in records:
-        masked_origins = list()
-        masked_backs = list()
-        origin_targets = list()
-        back_targets = list()
 
-        for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_captions']):
-            masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
-            masked_origins.append(masked_orig)
-            masked_backs.append(masked_back)
-            origin_targets.append(orig_target)
-            back_targets.append(back_target)
-        
-        rec['masked_orginal_captions'] = masked_origins
-        rec['masked_targets_original'] = origin_targets
+        for rec in records:
+            masked_origins = list()
+            masked_backs = list()
+            origin_targets = list()
+            back_targets = list()
 
-        rec['masked_back_captions'] = masked_backs
-        rec['masked_targets_back'] = back_targets
-        
+            for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_captions']):
+                masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
+                masked_origins.append(masked_orig)
+                masked_backs.append(masked_back)
+                origin_targets.append(orig_target)
+                back_targets.append(back_target)
+
+            rec['masked_orginal_captions'] = masked_origins
+            rec['masked_targets_original'] = origin_targets
+
+            rec['masked_back_captions'] = masked_backs
+            rec['masked_targets_back'] = back_targets
+
 
     with jsonl_path.open("w", encoding="utf-8") as jf:
         for rec in records:
@@ -269,12 +282,14 @@ def main() -> None:
     parser.add_argument("--audio-col", default="audio")
     parser.add_argument("--caption-mode", default="auto",
                         choices=["auto", "clotho", "audiocaps", "audioset",
-                                 "single", "raw"])
+                                 "single", "raw", "qa"])
     # column names per mode
     parser.add_argument("--text-col", default="text")            # clotho / single
     parser.add_argument("--caption-col", default="caption")      # audiocaps
     parser.add_argument("--labels-col", default="human_labels")  # audioset
     parser.add_argument("--raw-text-col", default="raw_text")    # raw
+    parser.add_argument("--question-col", default="question")    # qa
+    parser.add_argument("--answer-col", default="answer")        # qa
     parser.add_argument("--sample-rate", type=int, default=16000)
     parser.add_argument("--output-dir", "-b", default="./data",
                         help="Base output directory (default: ./data)")
@@ -290,13 +305,14 @@ def main() -> None:
         help="HuggingFace model id for back-translation",
     )
     parser.add_argument("--translate-batch-size", type=int, default=32)
-    parser.add_argument("--translate-device", default="cuda",
-                        choices=["cuda", "cpu"])
+    parser.add_argument("--translate-device", default="auto",
+                        choices=["auto", "cuda", "cpu"])
     parser.add_argument("--translate-num-beams", type=int, default=1)
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    output_dir = (repo_root / args.output_dir).resolve()
+    p = Path(args.output_dir)
+    output_dir = p.resolve() if p.is_absolute() else (repo_root / p).resolve()
     splits = [s.strip() for s in args.split.split(",")]
     caption_mode = resolve_caption_mode(args.caption_mode, args.dataset_id)
 
