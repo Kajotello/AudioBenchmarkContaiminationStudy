@@ -17,6 +17,11 @@ dataset class's text logic without re-touching HuggingFace:
     audiocaps  -> "captions": [<1 caption>]    (the `caption` column)
     audioset   -> "labels":   [<human labels>] (verbalised at load time)
 
+When ``--back-translate`` is enabled (default), each record also has
+``back_translated_caption``: en→zh→en via NLLB-200-3.3B. Clotho and AudioSet
+translate every caption/label string separately; AudioCaps stores a single
+string (one caption per clip).
+
 Caption/label construction stays at *load* time in JsonlAudioDataset, so the
 caption_index / require_num_captions / label_template knobs remain in config.
 
@@ -29,15 +34,24 @@ See ``--caption-mode``:
   - auto      : infer from dataset_id (clotho / audiocaps / audioset), else single
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
 from datasets import Audio, load_dataset
 from tqdm import tqdm
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from nllb_backtranslate import NllbRoundTripTranslator
 
 # Identical to ClothoAudioTextDataset so member/non-member text matches exactly.
 _CAPTION_SPLIT = re.compile(r"\.\s+")
@@ -92,6 +106,49 @@ def extract_text_fields(sample: dict, mode: str, cols: argparse.Namespace) -> di
     return {"text": caps[0] if caps else "", "captions": caps}
 
 
+def translatable_strings(fields: dict, caption_mode: str) -> list[str]:
+    """Source strings for round-trip translation (one entry per caption/label)."""
+    if caption_mode == "audioset":
+        return list(fields.get("labels") or [])
+    return list(fields.get("captions") or [])
+
+
+def attach_back_translated(
+    fields: dict, caption_mode: str, translated: list[str]
+) -> None:
+    """Write ``back_translated_caption`` parallel to captions/labels."""
+    if caption_mode == "audiocaps" and len(translated) == 1:
+        fields["back_translated_caption"] = translated[0]
+    else:
+        fields["back_translated_caption"] = translated
+
+
+def add_back_translations(
+    records: list[dict],
+    caption_mode: str,
+    translator: NllbRoundTripTranslator,
+) -> None:
+    """Batch round-trip all captions/labels in a split, then attach per record."""
+    flat: list[str] = []
+    spans: list[tuple[int, int]] = []
+
+    for rec in records:
+        units = translatable_strings(rec, caption_mode)
+        start = len(flat)
+        flat.extend(units)
+        spans.append((start, len(flat)))
+
+    if not flat:
+        return
+
+    print(f"  Back-translating {len(flat)} strings "
+          f"(cache size {translator.cache_size} before this split)...")
+    back = translator.round_trip(flat)
+
+    for rec, (start, end) in zip(records, spans):
+        attach_back_translated(rec, caption_mode, back[start:end])
+
+
 def split_dir_for(output_dir: Path, dataset_id: str,
                   config_name: str | None, split: str) -> Path:
     base = output_dir / safe_id(dataset_id)
@@ -110,6 +167,7 @@ def process_split(
     sample_rate: int,
     output_dir: Path,
     repo_root: Path,
+    translator: NllbRoundTripTranslator | None,
 ) -> None:
     split_dir = split_dir_for(output_dir, dataset_id, config_name, split)
     audio_dir = split_dir / "audio"
@@ -146,12 +204,16 @@ def process_split(
         rec.update(extract_text_fields(sample, caption_mode, cols))
         records.append(rec)
 
+    if translator is not None:
+        add_back_translations(records, caption_mode, translator)
+
     with jsonl_path.open("w", encoding="utf-8") as jf:
         for rec in records:
             jf.write(json.dumps(rec) + "\n")
 
+    bt = " + back_translated_caption" if translator else ""
     print(f"  [{split}] {written} new WAVs, {len(records)} records "
-          f"(mode={caption_mode}) -> {split_dir}")
+          f"(mode={caption_mode}{bt}) -> {split_dir}")
 
 
 def main() -> None:
@@ -173,6 +235,21 @@ def main() -> None:
     parser.add_argument("--sample-rate", type=int, default=16000)
     parser.add_argument("--output-dir", "-b", default="./data",
                         help="Base output directory (default: ./data)")
+    parser.add_argument(
+        "--back-translate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="en→zh→en NLLB round-trip into back_translated_caption (default: on)",
+    )
+    parser.add_argument(
+        "--nllb-model",
+        default="facebook/nllb-200-3.3B",
+        help="HuggingFace model id for back-translation",
+    )
+    parser.add_argument("--translate-batch-size", type=int, default=32)
+    parser.add_argument("--translate-device", default="cuda",
+                        choices=["cuda", "cpu"])
+    parser.add_argument("--translate-num-beams", type=int, default=1)
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -180,10 +257,21 @@ def main() -> None:
     splits = [s.strip() for s in args.split.split(",")]
     caption_mode = resolve_caption_mode(args.caption_mode, args.dataset_id)
 
+    translator: NllbRoundTripTranslator | None = None
+    if args.back_translate:
+        print(f"Loading NLLB: {args.nllb_model} ({args.translate_device})")
+        translator = NllbRoundTripTranslator(
+            model_name=args.nllb_model,
+            device=args.translate_device,
+            batch_size=args.translate_batch_size,
+            num_beams=args.translate_num_beams,
+        )
+
     print(f"Dataset      : {args.dataset_id}"
           + (f" ({args.config_name})" if args.config_name else ""))
     print(f"Splits       : {splits}")
     print(f"Caption mode : {caption_mode}")
+    print(f"Back-translate: {args.back_translate}")
     print(f"Output       : {output_dir}")
 
     for split in splits:
@@ -197,6 +285,7 @@ def main() -> None:
             sample_rate=args.sample_rate,
             output_dir=output_dir,
             repo_root=repo_root,
+            translator=translator,
         )
 
     print("Done.")
