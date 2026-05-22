@@ -49,6 +49,13 @@ export PROJECT_ROOT="$PROJECT_DIR"
 
 declare -A MAX_N=( [clotho]=100000 [audiocaps]=6630 [audioset]=10000 )
 
+
+python src/eval_mm_detect.py \
+      model=audio_flamingo3 method=mm_detect \
+      data_member=mm_detect_clotho data_non_member=mm_detect_clotho \
+      max_member_samples=${MAX_N[clotho]} max_non_member_samples=${MAX_N[clotho]} \
+      tags="[full,mm_detect]"
+
 # Full MIA battery: every method × every dataset (AF3)
 for DATA in clotho audiocaps audioset; do
   N=${MAX_N[$DATA]}
@@ -102,5 +109,6 @@ for MODE in full no_audio; do
       max_member_samples=${MAX_N[clotho]} max_non_member_samples=${MAX_N[clotho]} \
       batch_size=1 tags="[full,codec,$MODE]"
 done
+
 
 echo "[run_full] all full runs completed OK"
