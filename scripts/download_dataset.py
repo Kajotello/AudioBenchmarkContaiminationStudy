@@ -140,10 +140,7 @@ def attach_back_translated(
     fields: dict, caption_mode: str, translated: list[str]
 ) -> None:
     """Write ``back_translated_caption`` parallel to captions/labels."""
-    if caption_mode == "audiocaps" and len(translated) == 1:
-        fields["back_translated_caption"] = translated[0]
-    else:
-        fields["back_translated_caption"] = translated
+    fields["back_translated_caption"] = translated
 
 
 def add_back_translations(
@@ -230,25 +227,26 @@ def process_split(
     if translator is not None:
         add_back_translations(records, caption_mode, translator)
     
-    for rec in records:
-        masked_origins = list()
-        masked_backs = list()
-        origin_targets = list()
-        back_targets = list()
+        for rec in records:
+            masked_origins = []
+            masked_backs = []
+            origin_targets = []
+            back_targets = []
 
-        for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_captions']):
-            masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
-            masked_origins.append(masked_orig)
-            masked_backs.append(masked_back)
-            origin_targets.append(orig_target)
-            back_targets.append(back_target)
-        
-        rec['masked_orginal_captions'] = masked_origins
-        rec['masked_targets_original'] = origin_targets
-
-        rec['masked_back_captions'] = masked_backs
-        rec['masked_targets_back'] = back_targets
-        
+            # Both rec['captions'] and rec['back_translated_caption'] are now GUARANTEED to be lists
+            for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_caption']):
+                masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
+                masked_origins.append(masked_orig)
+                masked_backs.append(masked_back)
+                origin_targets.append(orig_target)
+                back_targets.append(back_target)
+            
+            # Save everything perfectly as parallel lists across all datasets
+            rec['masked_original_captions'] = masked_origins
+            rec['masked_targets_original'] = origin_targets
+            rec['masked_back_captions'] = masked_backs
+            rec['masked_targets_back'] = back_targets
+            
 
     with jsonl_path.open("w", encoding="utf-8") as jf:
         for rec in records:
