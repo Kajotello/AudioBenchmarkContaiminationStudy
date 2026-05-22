@@ -1,5 +1,7 @@
 # @package data_non_member
 _target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
-jsonl_path: ./data/OpenSound__AudioCaps/test/metadata.jsonl
+dataset_name: OpenSound__AudioCaps
+split: test
+data_dir: ${paths.data_dir}
 sampling_rate: 16000
 caption_index: 1

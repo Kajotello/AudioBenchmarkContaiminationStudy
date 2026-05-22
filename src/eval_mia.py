@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-from src.utils import RankedLogger, extras, task_wrapper
+from src.utils import RankedLogger, extras, init_wandb_run, log_wandb_metrics, task_wrapper
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -143,6 +143,8 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             "MIA evaluation requires both `data_member` and `data_non_member` configs."
         )
 
+    init_wandb_run(cfg)
+
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model = hydra.utils.instantiate(cfg.model)
     model.eval()
@@ -234,6 +236,8 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Saved per-sample MIA results to {per_sample_path}")
     log.info(f"Saved MIA metrics to {metrics_path}")
+
+    log_wandb_metrics(metric_dict)
 
     return metric_dict, object_dict
 

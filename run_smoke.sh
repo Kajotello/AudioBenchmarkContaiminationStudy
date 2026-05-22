@@ -45,6 +45,12 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
+# Required by configs/paths/default.yaml (${oc.env:PROJECT_ROOT})
+export PROJECT_ROOT="$PROJECT_DIR"
+
+# W&B (optional): export WANDB_API_KEY before running, or `wandb login` in the env.
+# Runs appear under project "audio-benchmark" (configs/logger/wandb.yaml).
+# Local logs: $PROJECT_ROOT/logs/<task_name>/runs/<timestamp>/
 
 # SMOKE="max_member_samples=2 max_non_member_samples=2 batch_size=2"
 

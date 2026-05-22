@@ -24,7 +24,7 @@ from src.eval_mia import (
     _compute_roc_auc,
     _score_dataset,
 )
-from src.utils import RankedLogger, extras, task_wrapper
+from src.utils import RankedLogger, extras, init_wandb_run, log_wandb_metrics, task_wrapper
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -48,6 +48,8 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
         raise ValueError(
             "Contamination detection requires both `data_member` and `data_non_member`."
         )
+
+    init_wandb_run(cfg)
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model = hydra.utils.instantiate(cfg.model)
@@ -151,6 +153,8 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
 
     log.info(f"Saved per-sample contamination results to {per_sample_path}")
     log.info(f"Saved contamination metrics to {metrics_path}")
+
+    log_wandb_metrics(metric_dict)
 
     return metric_dict, object_dict
 

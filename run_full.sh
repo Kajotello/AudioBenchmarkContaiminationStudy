@@ -53,6 +53,7 @@ export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 
 PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
+export PROJECT_ROOT="$PROJECT_DIR"
 
 declare -A MAX_N=( [clotho]=100000 [audiocaps]=6630 [audioset]=10000 )
 
