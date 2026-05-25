@@ -22,6 +22,53 @@ create python 3.10 env and install requirements from src/audio_flamingo_2/requir
 
 This project aims to adapt benchmark contamination detection methods — originally developed for LLMs and Vision-Language Models (VLMs) — to **Audio Language Models (ALMs)**. Building on the "slot guessing for perturbed captions" technique from *Both Text and Images Leaked!* [3] and multi-modal semantic perturbation approaches [5], we will design audio-domain equivalents of semantic perturbations (e.g., pitch shifts, tempo changes, noise injections) to probe whether a model was trained on supposedly held-out evaluation data. Using datasets with explicit train/test boundaries (Clotho-AQA, AudioMCQ), found contamination signals will be used to: (1) verify the feasibility of audio-domain contamination detection, and (2) evaluate detection robustness across multiple ALMs (Audio-Reasoner, Flamingo Audio).
 
+## Running experiments
+
+### 0. One-time setup
+```bash
+cp .env.example .env                    # then edit PROJECT_ROOT to point at this repo
+export PROJECT_ROOT=/abs/path/to/AudioBenchmarkContaiminationStudy
+export WANDB_API_KEY=...                # or `wandb login`; set logger.wandb.enabled=false to skip
+```
+
+Materialise every dataset to local WAV + JSONL once (uses the data env, not the AF2 env):
+```bash
+bash scripts/slurm/download_all_datasets.sh
+```
+Re-runs are cheap — existing WAVs are kept and only `metadata.jsonl` is rebuilt.
+
+### 1. Single run (Hydra overrides)
+There are three entrypoints, one per detection family:
+
+| script | method config family | what it does |
+| --- | --- | --- |
+| `src/eval_mia.py` | `MIA_perplexity`, `min_k`, `min_k_pp`, `vl_mia_entropy`, `yeom_perplexity` | per-token MIA, reports ROC-AUC + best threshold accuracy |
+| `src/contamination.py` | `codec` | CoDeC: with-context vs no-context confidence delta |
+| `src/eval_mm_detect.py` | `mm_detect` | slot guessing on original vs back-translated captions |
+
+Pick model/method/data via Hydra:
+```bash
+python src/eval_mia.py \
+    model=audio_flamingo3 method=min_k_pp \
+    data_member=clotho data_non_member=clotho \
+    paths.data_dir=/path/to/datasets \
+    max_member_samples=200 max_non_member_samples=200 \
+    tags="[dev]"
+```
+Available choices live under `configs/{model,method,data_member,data_non_member}/`. AF3 + CoDeC must be run with `method.mode=no_audio` (transformers 5.9 enforces 1:1 text:audio in the AF3 chat template).
+
+Outputs land in `logs/<task_name>/runs/<timestamp>/` — per-sample CSV, a metrics `.txt`, and the resolved Hydra config. If wandb is enabled the same metrics ship to the `audio-benchmark` project.
+
+### 2. The full grid
+The `(model × method × dataset)` matrix used for the report is enumerated in `configs/grid_jobs.txt` and consumed by the SLURM array jobs in `scripts/slurm/`:
+```bash
+mkdir -p logs/grid
+sbatch scripts/slurm/run_grid.sbatch                  # everything
+sbatch --array=0-9  scripts/slurm/run_grid.sbatch     # subset
+```
+Smoke-test the same plumbing with 2 samples per split: `bash scripts/slurm/run_smoke.sh`.
+
+
 ## References
 
 1. Y. Wang et al., "Beyond Boundaries: A Comprehensive Survey of Transferable Attacks on AI Systems," arXiv, 2024.
