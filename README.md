@@ -1,22 +1,6 @@
 # Audio Contamination: Benchmark Contamination Detection for Audio Language Models
 ### Projekt WIMU 26L - zespół 10 - Kajetan Rożej, Rafał Szczepaniak, Wojciech Zarzecki
 
-## Dependencies fun
-### conclusion about 2 environments
-#### cause
-- HF removed from datasets > 4.0 the old soundfile/torchaudio backend and now requires torchcodec to decode the Audio feature. If torchcodec isn't installed you get ImportError: To support decoding audio data, please install 'torchcodec'. The problem is that torchcodec wheels are tightly pinned to a specific torch version (eg torchcodec 0.8 to PyTorch 2.9`) 
-- Audio Flamingo 2 and 3 have pinned old torch versions 
-
-#### solution two environments 
-1) one for running model inference give path to physical file (eg .wav file) - soundfile loads file with no problem; Audio Flamingo can used pinned old torch
-2) another to convert HF dataset to local files on disk - one which requires torchcodec with newer torch (or find drive with physical files)
-
-### Dump AF3 on old GPU
-After a longer while of struggling found on https://huggingface.co/nvidia/audio-flamingo-3-hf that: Supported Hardware: NVIDIA Ampere (A100), NVIDIA Hopper (H100) - so older GPUs like A5000 won't work :(
-
-
-### How to run AF2
-create python 3.10 env and install requirements from src/audio_flamingo_2/requirements.txt (AF2 native and project specific eg hydra)
 
 ## Outline
 
