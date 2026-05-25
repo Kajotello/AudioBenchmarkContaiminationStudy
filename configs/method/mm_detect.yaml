@@ -1,0 +1,2 @@
+_target_: src.methods.mm_detect.MMDetectMethod
+prompt_template: "Fill in the [MASK] of the following sentence in one word: {caption}"

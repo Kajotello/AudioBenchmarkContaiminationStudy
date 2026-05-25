@@ -1,0 +1,3 @@
+_target_: src.methods.vl_mia_entropy_method.VLMIAEntropyMethod
+prompt: null
+top_pct: 20.0

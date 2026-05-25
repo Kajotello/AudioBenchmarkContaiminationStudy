@@ -1,0 +1,12 @@
+# Default = AF2 0.5B. For other sizes use audio_flamingo2_1_5B.yaml / audio_flamingo2_3B.yaml.
+# Valid hf_repo_id values:
+#   nvidia/audio-flamingo-2-0.5B   (0.5B)
+#   nvidia/audio-flamingo-2-1.5B   (1.5B)
+#   nvidia/audio-flamingo-2        (3B - no size suffix)
+_target_: src.models.wrappers.audio_flamingo2_wrapper.AudioFlamingo2Wrapper
+hf_repo_id: "nvidia/audio-flamingo-2-0.5B"
+af2_dir: "src/audio_flamingo_2/inference_HF_pretrained"
+config_path: "configs/inference.yaml"
+device: "cuda"
+dtype: "bfloat16"
+default_prompt: "describe audio"

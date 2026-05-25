@@ -2,16 +2,19 @@
 
 defaults:
   - _self_
-  - data: clotho
   - model: audio_flamingo3
   - method: MIA_perplexity
   - logger: wandb
   - paths: default
   - extras: default
   - hydra: default
+  - data_member: clotho
+  - data_non_member: clotho
 
-task_name: "eval"
-
+task_name: "mia"
 tags: ["dev"]
 
-max_samples: 100
+
+max_member_samples: 100
+max_non_member_samples: 100
+batch_size: 4

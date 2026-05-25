@@ -1,0 +1,11 @@
+_target_: src.models.wrappers.audio_flamingo2_wrapper.AudioFlamingo2Wrapper
+hf_repo_id: "nvidia/audio-flamingo-2-1.5B"
+af2_dir: "src/audio_flamingo_2/inference_HF_pretrained"
+config_path: "configs/inference.yaml"
+device: "cuda"
+dtype: "bfloat16"
+default_prompt: "describe audio"
+# 1.5B variant uses Qwen2.5-1.5B as the language encoder (hidden_size=1536);
+# overrides the 0.5B default in configs/inference.yaml.
+lang_encoder_path: "Qwen/Qwen2.5-1.5B"
+tokenizer_path: "Qwen/Qwen2.5-1.5B"

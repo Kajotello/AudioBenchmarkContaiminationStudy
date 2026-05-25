@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - model: audio_flamingo3
+  - method: codec
+  - logger: wandb
+  - paths: default
+  - extras: default
+  - hydra: default
+  - data_member: clotho
+  - data_non_member: clotho
+
+task_name: "contamination"
+tags: ["codec"]
+
+context_pool_size: 50
+max_member_samples: 100
+max_non_member_samples: 100
+batch_size: 1
+seed: 42

@@ -1,1 +1,2 @@
 _target_: src.methods.mia_perplexity_method.MIAPerplexityMethod
+prompt: null

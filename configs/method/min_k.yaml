@@ -1,0 +1,3 @@
+_target_: src.methods.min_k_method.MinKProbMethod
+prompt: null
+k_pct: 20.0

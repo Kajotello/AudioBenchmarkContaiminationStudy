@@ -1,0 +1,20 @@
+# mmau + clotho_aqa across all 4 models — 16 combos
+# codec on both datasets (paired self×self) + mm_detect on both datasets (member-only single split)
+# DATA_NM="null" -> Hydra override `data_non_member=null` skips the non-member split.
+# model<TAB>method<TAB>data_member<TAB>data_non_member<TAB>tag
+audio_flamingo3	codec	mmau	mmau	codec_af3_mmau
+audio_flamingo3	codec	clotho_aqa	clotho_aqa	codec_af3_clotho_aqa
+audio_flamingo2	codec	mmau	mmau	codec_af2_0_5B_mmau
+audio_flamingo2	codec	clotho_aqa	clotho_aqa	codec_af2_0_5B_clotho_aqa
+audio_flamingo2_1_5B	codec	mmau	mmau	codec_af2_1_5B_mmau
+audio_flamingo2_1_5B	codec	clotho_aqa	clotho_aqa	codec_af2_1_5B_clotho_aqa
+audio_flamingo2_3B	codec	mmau	mmau	codec_af2_3B_mmau
+audio_flamingo2_3B	codec	clotho_aqa	clotho_aqa	codec_af2_3B_clotho_aqa
+audio_flamingo3	mm_detect	mm_detect_mmau	null	mm_detect_af3_mmau
+audio_flamingo3	mm_detect	mm_detect_clotho_aqa	null	mm_detect_af3_clotho_aqa
+audio_flamingo2	mm_detect	mm_detect_mmau	null	mm_detect_af2_0_5B_mmau
+audio_flamingo2	mm_detect	mm_detect_clotho_aqa	null	mm_detect_af2_0_5B_clotho_aqa
+audio_flamingo2_1_5B	mm_detect	mm_detect_mmau	null	mm_detect_af2_1_5B_mmau
+audio_flamingo2_1_5B	mm_detect	mm_detect_clotho_aqa	null	mm_detect_af2_1_5B_clotho_aqa
+audio_flamingo2_3B	mm_detect	mm_detect_mmau	null	mm_detect_af2_3B_mmau
+audio_flamingo2_3B	mm_detect	mm_detect_clotho_aqa	null	mm_detect_af2_3B_clotho_aqa

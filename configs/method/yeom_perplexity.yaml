@@ -1,0 +1,3 @@
+_target_: src.methods.mia_perplexity_method.YeomPerplexityMethod
+prompt: null
+use_perplexity: true

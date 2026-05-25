@@ -1,0 +1,11 @@
+datasets>=2.14.0
+soundfile>=0.12.1
+librosa>=0.10.0
+tqdm>=4.65.0
+huggingface_hub>=0.20.0
+numpy>=1.24.0
+torch
+torchcodec>=0.1.0
+spacy>=3.0.0
+transformers>=4.40.0
+sentencepiece>=0.1.99
