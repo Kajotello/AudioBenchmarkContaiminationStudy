@@ -3,7 +3,7 @@
 Runs the CoDeC method (or any method that consumes a context pool) over a member /
 non-member dataset pair, producing per-sample scores and aggregate metrics.
 
-Re-uses scoring + metric helpers from ``src/eval.py`` to avoid duplication.
+Re-uses scoring + metric helpers from ``src/eval_mia.py`` to avoid duplication.
 """
 
 from __future__ import annotations
@@ -94,7 +94,6 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
     max_member_samples = cfg.get("max_member_samples", None)
     max_non_member_samples = cfg.get("max_non_member_samples", None)
     batch_size = int(cfg.get("batch_size", 1))
-    seed = int(cfg.get("seed", 42))
 
     log.info("Scoring member dataset...")
     with torch.no_grad():
