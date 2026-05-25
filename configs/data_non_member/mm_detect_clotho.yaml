@@ -1,0 +1,8 @@
+# @package data_non_member
+_target_: src.data.components.jsonl_mm_detect_dataset.JsonlMMDetectDataset
+dataset_name: CLAPv2__Clotho
+split: validation
+data_dir: ${paths.data_dir}
+sampling_rate: 16000
+caption_index: 1
+require_num_captions: 5

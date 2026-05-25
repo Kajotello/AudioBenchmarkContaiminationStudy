@@ -1,0 +1,7 @@
+# @package data_member
+_target_: src.data.components.jsonl_mm_detect_dataset.JsonlMMDetectDataset
+dataset_name: lmms-lab__ClothoAQA/clotho_aqa
+split: clotho_aqa_test_filtered
+data_dir: ${paths.data_dir}
+sampling_rate: 16000
+caption_index: 1

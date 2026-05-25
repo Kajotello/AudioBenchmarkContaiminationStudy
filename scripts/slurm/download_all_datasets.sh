@@ -8,8 +8,17 @@ module load CUDA/12.8
 USERNAME="$(whoami)"
 
 export SCRATCH_BASE="/net/tscratch/people/${USERNAME}"
-export ENV_PREFIX="/net/tscratch/people/plgwzarzecki/pw/envs/download_env/"
+export ENV_PREFIX="/net/tscratch/people/plgwzarzecki/pw/envs/download_env_v2/"
 conda activate "$ENV_PREFIX"
+export LD_LIBRARY_PATH="$ENV_PREFIX/lib:$LD_LIBRARY_PATH"
+
+# Redirect HuggingFace caches to scratch so dataset / model downloads don't
+# blow the 10 GiB $HOME quota.
+export HF_HOME="${SCRATCH_BASE}/hf_cache"
+export HF_DATASETS_CACHE="${HF_HOME}/datasets"
+export HF_HUB_CACHE="${HF_HOME}/hub"
+export TRANSFORMERS_CACHE="${HF_HOME}/transformers"
+mkdir -p "$HF_DATASETS_CACHE" "$HF_HUB_CACHE" "$TRANSFORMERS_CACHE"
 
 # ============================================================
 # Fetch-once: materialise every dataset to local WAV + JSONL.
@@ -78,18 +87,7 @@ python "$DOWNLOAD" \
     --caption-mode qa \
     --question-col question \
     --answer-col answer \
-    --split test \
-    --output-dir "$OUTPUT_DIR" \
-    --no-back-translate
-
-# --- MuchoMusic (mulab-mir/muchomusic): benchmark QA ----
-log "=== mulab-mir/muchomusic ==="
-python "$DOWNLOAD" \
-    --dataset-id mulab-mir/muchomusic \
-    --caption-mode qa \
-    --question-col question \
-    --answer-col answer \
-    --split test \
+    --split v05.15.25 \
     --output-dir "$OUTPUT_DIR" \
     --no-back-translate
 

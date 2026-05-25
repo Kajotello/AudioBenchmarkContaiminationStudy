@@ -196,7 +196,6 @@ def process_split(
     cols: argparse.Namespace,
     sample_rate: int,
     output_dir: Path,
-    repo_root: Path,
     translator: NllbRoundTripTranslator | None,
 ) -> None:
     split_dir = split_dir_for(output_dir, dataset_id, config_name, split)
@@ -236,7 +235,7 @@ def process_split(
                     raise
             written += 1
 
-        rec = {"index": idx, "audio": str(wav_path.relative_to(repo_root))}
+        rec = {"index": idx, "audio": str(wav_path.relative_to(output_dir))}
         rec.update(extract_text_fields(sample, caption_mode, cols))
         records.append(rec)
 
@@ -244,19 +243,26 @@ def process_split(
         add_back_translations(records, caption_mode, translator)
 
         for rec in records:
+            originals = translatable_strings(rec, caption_mode)
+            back = rec.get('back_translated_caption')
+            if isinstance(back, str):
+                back = [back]
+            elif back is None:
+                back = []
+
             masked_origins = list()
             masked_backs = list()
             origin_targets = list()
             back_targets = list()
 
-            for caption, back_translated_caption in zip(rec['captions'], rec['back_translated_captions']):
+            for caption, back_translated_caption in zip(originals, back):
                 masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
                 masked_origins.append(masked_orig)
                 masked_backs.append(masked_back)
                 origin_targets.append(orig_target)
                 back_targets.append(back_target)
 
-            rec['masked_orginal_captions'] = masked_origins
+            rec['masked_original_captions'] = masked_origins
             rec['masked_targets_original'] = origin_targets
 
             rec['masked_back_captions'] = masked_backs
@@ -343,7 +349,6 @@ def main() -> None:
             cols=args,
             sample_rate=args.sample_rate,
             output_dir=output_dir,
-            repo_root=repo_root,
             translator=translator,
         )
 

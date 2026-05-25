@@ -1,0 +1,10 @@
+# AF3 subset of configs/grid_jobs.txt — 8 combos (codec×5 + mm_detect×3)
+# model<TAB>method<TAB>data_member<TAB>data_non_member<TAB>tag
+audio_flamingo3	codec	clotho	clotho	codec_af3_clotho
+audio_flamingo3	codec	audiocaps	audiocaps	codec_af3_audiocaps
+audio_flamingo3	codec	audioset	audioset	codec_af3_audioset
+audio_flamingo3	codec	mmau	mmau	codec_af3_mmau
+audio_flamingo3	codec	clotho_aqa	clotho_aqa	codec_af3_clotho_aqa
+audio_flamingo3	mm_detect	mm_detect_clotho	mm_detect_clotho	mm_detect_af3_clotho
+audio_flamingo3	mm_detect	mm_detect_audiocaps	mm_detect_audiocaps	mm_detect_af3_audiocaps
+audio_flamingo3	mm_detect	mm_detect_audioset	mm_detect_audioset	mm_detect_af3_audioset

@@ -16,13 +16,16 @@ class NllbRoundTripTranslator:
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
-        device: str = "cuda",
+        device: str = "auto",
         batch_size: int = 32,
         max_new_tokens: int = 128,
         num_beams: int = 1,
     ) -> None:
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         if device == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("CUDA requested for NLLB but no GPU is available.")
+            print("WARNING: CUDA requested but unavailable — falling back to CPU.")
+            device = "cpu"
 
         self.batch_size = batch_size
         self.max_new_tokens = max_new_tokens

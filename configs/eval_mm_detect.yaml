@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - model: audio_flamingo3
+  - method: mm_detect
+  - logger: wandb
+  - paths: default
+  - extras: default
+  - hydra: default
+  # To run on a single split only, override on CLI:
+  #   python src/eval_mm_detect.py data_non_member=null   # member-only
+  #   python src/eval_mm_detect.py data_member=null       # non-member-only
+  - data_member: mm_detect_clotho
+  - data_non_member: mm_detect_clotho
+
+task_name: "mm_detect"
+tags: ["mm_detect"]
+
+max_member_samples: 100
+max_non_member_samples: 100

@@ -1,0 +1,10 @@
+# AF2 0.5B subset — 8 combos (codec×5 + mm_detect×3)
+# model<TAB>method<TAB>data_member<TAB>data_non_member<TAB>tag
+audio_flamingo2	codec	clotho	clotho	codec_af2_0_5B_clotho
+audio_flamingo2	codec	audiocaps	audiocaps	codec_af2_0_5B_audiocaps
+audio_flamingo2	codec	audioset	audioset	codec_af2_0_5B_audioset
+audio_flamingo2	codec	mmau	mmau	codec_af2_0_5B_mmau
+audio_flamingo2	codec	clotho_aqa	clotho_aqa	codec_af2_0_5B_clotho_aqa
+audio_flamingo2	mm_detect	mm_detect_clotho	mm_detect_clotho	mm_detect_af2_0_5B_clotho
+audio_flamingo2	mm_detect	mm_detect_audiocaps	mm_detect_audiocaps	mm_detect_af2_0_5B_audiocaps
+audio_flamingo2	mm_detect	mm_detect_audioset	mm_detect_audioset	mm_detect_af2_0_5B_audioset

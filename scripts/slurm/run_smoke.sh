@@ -43,7 +43,7 @@ export LD_LIBRARY_PATH="$ENV_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export PATH="$ENV_PREFIX/bin:${PATH}"
 export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-$ENV_PREFIX}"
 
-PROJECT_DIR="$SCRATCH_BASE/AudioBenchmarkContaiminationStudy"
+PROJECT_DIR="/net/people/plgrid/plgwzarzecki/pw/AudioBenchmarkContaiminationStudy"
 cd "$PROJECT_DIR"
 # Required by configs/paths/default.yaml (${oc.env:PROJECT_ROOT})
 export PROJECT_ROOT="$PROJECT_DIR"

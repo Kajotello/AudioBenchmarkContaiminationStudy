@@ -87,6 +87,7 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
     max_member_samples = cfg.get("max_member_samples", None)
     max_non_member_samples = cfg.get("max_non_member_samples", None)
     batch_size = int(cfg.get("batch_size", 1))
+    seed = int(cfg.get("seed", 42))
 
     log.info("Scoring member dataset...")
     with torch.no_grad():
@@ -94,6 +95,7 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
             model=model, method=method, dataset=member_dataset,
             label=1, split_name="member",
             max_samples=max_member_samples, batch_size=batch_size,
+            seed=seed,
         )
 
     log.info("Scoring non-member dataset...")
@@ -102,6 +104,7 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
             model=model, method=method, dataset=non_member_dataset,
             label=0, split_name="non_member",
             max_samples=max_non_member_samples, batch_size=batch_size,
+            seed=seed + 1,
         )
 
     all_results = member_results + non_member_results
@@ -126,6 +129,15 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
         ),
         "non_member_score_mean": (
             float(sum(non_member_scores) / len(non_member_scores))
+            if non_member_scores else float("nan")
+        ),
+        # Score(D) = (1/N) * sum_i 1[delta(x_i) < 0]
+        "member_normalized_score": (
+            float(sum(1 for s in member_scores if s < 0) / len(member_scores))
+            if member_scores else float("nan")
+        ),
+        "non_member_normalized_score": (
+            float(sum(1 for s in non_member_scores if s < 0) / len(non_member_scores))
             if non_member_scores else float("nan")
         ),
         "roc_auc": roc_auc,

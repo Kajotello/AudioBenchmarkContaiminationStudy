@@ -1,4 +1,4 @@
-# @package data_benchmark
+# @package data_non_member
 _target_: src.data.components.jsonl_audio_dataset.JsonlAudioDataset
 dataset_name: TwinkStart__MMAU
 split: v05.15.25

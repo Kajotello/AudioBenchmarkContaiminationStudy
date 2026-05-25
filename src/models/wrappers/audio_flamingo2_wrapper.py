@@ -81,6 +81,8 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         device: str = "cuda",
         dtype: str = "float16",
         default_prompt: str = "describe audio",
+        lang_encoder_path: str | None = None,
+        tokenizer_path: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -107,22 +109,67 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
             from src.factory import create_model_and_transforms  # type: ignore
             from utils import Dict2Class, get_cast_dtype          # type: ignore
 
-            snapshot_download(repo_id=hf_repo_id, local_dir="./")
-
+            # configs/inference.yaml is committed alongside the AF2 source code
+            # (it's NOT in the HF snapshot), so load it from af2_path.
             with open(config_path, "r") as f:
                 config = yaml.load(f, Loader=yaml.FullLoader)
 
-            model_config = config["model_config"]
-            self.clap_config = config["clap_config"]
+            model_config = dict(config["model_config"])
+            # The committed inference.yaml encodes the 0.5B architecture
+            # (Qwen2.5-0.5B). For larger AF2 sizes the language encoder must
+            # match the checkpoint's hidden size (1.5B → Qwen2.5-1.5B,
+            # 3B → Qwen2.5-3B), otherwise state_dict load fails on size
+            # mismatch in lang_encoder.model.embed_tokens.weight.
+            if lang_encoder_path:
+                model_config["lang_encoder_path"] = lang_encoder_path
+                model_config["tokenizer_path"] = tokenizer_path or lang_encoder_path
+            elif tokenizer_path:
+                model_config["tokenizer_path"] = tokenizer_path
+
+            # inference.yaml has cache_dir: .cache (relative) — when cwd is
+            # af2_path that resolves into the source tree, which is $HOME and
+            # gets blown out quickly by Qwen2.5 weights. Redirect to the HF
+            # hub cache so downloads land on scratch ($HF_HOME / $HF_HUB_CACHE).
+            import os as _os
+            hf_cache_dir = _os.environ.get("HF_HUB_CACHE") or _os.environ.get(
+                "TRANSFORMERS_CACHE"
+            )
+            if hf_cache_dir:
+                model_config["cache_dir"] = hf_cache_dir
+            self.clap_config = dict(config["clap_config"])
             train_args = Dict2Class(config["train_config"])
 
-            model, tokenizer = create_model_and_transforms(
-                **model_config,
-                clap_config=self.clap_config,
-                use_local_files=train_args.offline,
-                gradient_checkpointing=train_args.gradient_checkpointing,
-                freeze_lm_embeddings=train_args.freeze_lm_embeddings,
-            )
+            # Snapshot contains the model-specific safe_ckpt/ and clap_ckpt/
+            # under HF cache ($HF_HOME / $HF_HUB_CACHE → scratch). Returns the
+            # cached snapshot's absolute path; every AF2 size lives under its
+            # own models--<safe_repo_id>/ dir so parallel jobs never collide.
+            ckpt_root = Path(snapshot_download(repo_id=hf_repo_id))
+
+            # inference.yaml references clap_ckpt/<file> relative to the model
+            # snapshot. Rewrite to absolute so CLAP loads from the cache, not
+            # from cwd.
+            cp = self.clap_config.get("checkpoint")
+            if cp and not Path(cp).is_absolute():
+                self.clap_config["checkpoint"] = str(ckpt_root / cp)
+
+            # PyTorch 2.6 flipped the torch.load default to weights_only=True,
+            # which trips the AF2 / CLAP pickle-based checkpoints (they store
+            # numpy scalars). Restore the legacy default just for this load.
+            _orig_torch_load = torch.load
+            def _torch_load_legacy(*args, **kwargs):
+                kwargs.setdefault("weights_only", False)
+                return _orig_torch_load(*args, **kwargs)
+            torch.load = _torch_load_legacy
+            try:
+                model, tokenizer = create_model_and_transforms(
+                    **model_config,
+                    clap_config=self.clap_config,
+                    use_local_files=train_args.offline,
+                    gradient_checkpointing=train_args.gradient_checkpointing,
+                    freeze_lm_embeddings=train_args.freeze_lm_embeddings,
+                )
+            finally:
+                torch.load = _orig_torch_load
 
             # Keep model in float32: AF2's CLAP submodule casts audio to fp32
             # internally (int16_to_float32_torch), so casting weights to fp16
@@ -131,11 +178,11 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
             model = model.to(self._device)
             model.eval()
 
-            with open("safe_ckpt/metadata.json", "r") as f:
+            with open(ckpt_root / "safe_ckpt/metadata.json", "r") as f:
                 metadata = json.load(f)
             state_dict: dict[str, torch.Tensor] = {}
             for chunk_name in metadata:
-                state_dict.update(load_file(f"safe_ckpt/{chunk_name}.safetensors"))
+                state_dict.update(load_file(str(ckpt_root / f"safe_ckpt/{chunk_name}.safetensors")))
             missing, unexpected = model.load_state_dict(state_dict, False)
             if missing:
                 log.warning("AF2 missing keys: %d", len(missing))

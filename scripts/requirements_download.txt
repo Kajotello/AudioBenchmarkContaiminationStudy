@@ -6,3 +6,6 @@ huggingface_hub>=0.20.0
 numpy>=1.24.0
 torch
 torchcodec>=0.1.0
+spacy>=3.0.0
+transformers>=4.40.0
+sentencepiece>=0.1.99
