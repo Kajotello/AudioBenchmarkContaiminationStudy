@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -10,8 +10,9 @@ import functools
 import os
 import random
 from tqdm import tqdm
-import sys 
-sys.path.append('../')
+import sys
+
+sys.path.append("../")
 import yaml
 import time
 
@@ -21,7 +22,17 @@ from data.data import get_audiotext_dataloader
 
 
 @torch.no_grad()
-def validation_losses(model, data_config, clap_config, tokenizer, batch_size, autocast, cast_dtype, device_id, verbose=True):
+def validation_losses(
+    model,
+    data_config,
+    clap_config,
+    tokenizer,
+    batch_size,
+    autocast,
+    cast_dtype,
+    device_id,
+    verbose=True,
+):
 
     model.eval()
 
@@ -31,10 +42,18 @@ def validation_losses(model, data_config, clap_config, tokenizer, batch_size, au
         loss_sum = 0.0
         for idx, batch in tqdm(enumerate(validloader)):
 
-            audio_clips = batch["audio_clips"].to(device_id, dtype=cast_dtype, non_blocking=True)
-            audio_embed_mask = batch["audio_embed_mask"].to(device_id, dtype=cast_dtype, non_blocking=True)
-            input_ids = batch["input_ids"].to(device_id, dtype=cast_dtype, non_blocking=True)
-            attention_mask = batch["attention_mask"].to(device_id, dtype=cast_dtype, non_blocking=True)
+            audio_clips = batch["audio_clips"].to(
+                device_id, dtype=cast_dtype, non_blocking=True
+            )
+            audio_embed_mask = batch["audio_embed_mask"].to(
+                device_id, dtype=cast_dtype, non_blocking=True
+            )
+            input_ids = batch["input_ids"].to(
+                device_id, dtype=cast_dtype, non_blocking=True
+            )
+            attention_mask = batch["attention_mask"].to(
+                device_id, dtype=cast_dtype, non_blocking=True
+            )
 
             labels = input_ids.clone()
             labels[labels == tokenizer.pad_token_id] = -100
@@ -56,12 +75,21 @@ def validation_losses(model, data_config, clap_config, tokenizer, batch_size, au
                         shouldmask = False
                     elif labels[i][j] == endofchunk_token_id:
                         shouldmask = True
-                    
+
                     labels[i][j] = masked_value
-                
-                if labels[i][-1] not in [-100, tokenizer.eos_token_id, tokenizer.pad_token_id, endofchunk_token_id]:
-                    for j in range(labels.shape[1]-1, -1, -1):
-                        if labels[i][j] not in [-100, tokenizer.eos_token_id, endofchunk_token_id]:
+
+                if labels[i][-1] not in [
+                    -100,
+                    tokenizer.eos_token_id,
+                    tokenizer.pad_token_id,
+                    endofchunk_token_id,
+                ]:
+                    for j in range(labels.shape[1] - 1, -1, -1):
+                        if labels[i][j] not in [
+                            -100,
+                            tokenizer.eos_token_id,
+                            endofchunk_token_id,
+                        ]:
                             labels[i][j] = -100
                         else:
                             break
@@ -74,30 +102,38 @@ def validation_losses(model, data_config, clap_config, tokenizer, batch_size, au
                     audio_x_mask=audio_embed_mask,
                     lang_x=input_ids,
                     attention_mask=attention_mask,
-                    labels=labels
+                    labels=labels,
                 )
                 valid_loss_no_multiplier = output.loss.item()
                 loss_sum += valid_loss_no_multiplier
 
-        return loss_sum / ((idx+1) * batch_size)
+        return loss_sum / ((idx + 1) * batch_size)
 
     media_token_id = tokenizer("<audio>", add_special_tokens=False)["input_ids"][-1]
     assert media_token_id == tokenizer.encode("<audio>")[-1]
-    endofchunk_token_id = tokenizer("<|endofchunk|>", add_special_tokens=False)["input_ids"][-1]
+    endofchunk_token_id = tokenizer("<|endofchunk|>", add_special_tokens=False)[
+        "input_ids"
+    ][-1]
 
     valid_losses = {}
-    all_valid_AudioTextDataInfo = get_audiotext_dataloader(data_config, clap_config, tokenizer, batch_size, split='val')
+    all_valid_AudioTextDataInfo = get_audiotext_dataloader(
+        data_config, clap_config, tokenizer, batch_size, split="val"
+    )
     for valid_dataset_name in all_valid_AudioTextDataInfo:
         if verbose:
-            print('computing validation loss on {}'.format(valid_dataset_name))
+            print("computing validation loss on {}".format(valid_dataset_name))
 
-        validloader = all_valid_AudioTextDataInfo[valid_dataset_name].dataloader 
+        validloader = all_valid_AudioTextDataInfo[valid_dataset_name].dataloader
         valid_losses[valid_dataset_name] = get_val_loss(validloader)
 
         if verbose:
-            print('validation loss on {} is {:.3f}'.format(valid_dataset_name, valid_losses[valid_dataset_name]))
-    
-    model.train() 
+            print(
+                "validation loss on {} is {:.3f}".format(
+                    valid_dataset_name, valid_losses[valid_dataset_name]
+                )
+            )
+
+    model.train()
 
     return valid_losses
 
@@ -107,16 +143,24 @@ if __name__ == "__main__":
     from train_utils import Dict2Class, get_autocast, get_cast_dtype
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='../configs/config.yaml', help='yaml config path')
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="../configs/config.yaml",
+        help="yaml config path",
+    )
     parsed_args = parser.parse_args()
 
     config = yaml.load(open(parsed_args.config), Loader=yaml.FullLoader)
-    data_config = config['data_config']
-    model_config = config['model_config']
-    clap_config = config['clap_config']
-    args = Dict2Class(config['train_config'])
+    data_config = config["data_config"]
+    model_config = config["model_config"]
+    clap_config = config["clap_config"]
+    args = Dict2Class(config["train_config"])
 
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # disable the tokenizer parallelism warning
+    os.environ["TOKENIZERS_PARALLELISM"] = (
+        "false"  # disable the tokenizer parallelism warning
+    )
     model, tokenizer = create_model_and_transforms(
         **model_config,
         clap_config=clap_config,
@@ -127,22 +171,22 @@ if __name__ == "__main__":
 
     device_id = 0
     model = model.to(device_id)
-    
+
     autocast = get_autocast(
         args.precision, cache_enabled=(not args.fsdp)
     )  # if fsdp, disable cache to save memory
     cast_dtype = get_cast_dtype(args.precision)
 
     valid_losses = validation_losses(
-        model, 
-        data_config, 
+        model,
+        data_config,
         clap_config,
-        tokenizer, 
-        args.batch_size, 
-        autocast, 
+        tokenizer,
+        args.batch_size,
+        autocast,
         cast_dtype,
         device_id,
-        verbose=True
+        verbose=True,
     )
 
     print(valid_losses)

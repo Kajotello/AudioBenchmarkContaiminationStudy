@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import logging
@@ -41,7 +39,11 @@ from training.distributed import is_master, init_distributed_device, world_info_
 from training.logger import setup_logging
 from training.scheduler import cosine_lr
 from training.lp_train import train_one_epoch, evaluate
-from clap_module.utils import get_tar_path_from_dataset_name, dataset_split, get_optimizer
+from clap_module.utils import (
+    get_tar_path_from_dataset_name,
+    dataset_split,
+    get_optimizer,
+)
 from clap_module.utils import load_p, load_class_label
 from clap_module.linear_probe import LinearProbe
 
@@ -134,6 +136,7 @@ def random_seed(seed=42, rank=0):
     np.random.seed(seed + rank)
     random.seed(seed + rank)
 
+
 def config_lp_optimizer(model, data, args):
     # set wd-related params to 0 if use adam optimizer
     if args.optimizer == "adam":
@@ -141,9 +144,7 @@ def config_lp_optimizer(model, data, args):
         args.wd_pretrained = 0
         args.wd_new = 0
 
-    in_clap = (
-        lambda n, p: n.startswith("clap_model")
-    )
+    in_clap = lambda n, p: n.startswith("clap_model")
 
     named_parameters = list(model.named_parameters())
 
@@ -181,7 +182,9 @@ def config_lp_optimizer(model, data, args):
             p for n, p in named_parameters if exclude(n, p) and p.requires_grad
         ]
         # rest_params = [p for n, p in named_parameters if in_clap(n,p) and include(n, p) and p.requires_grad]
-        rest_params = [p for n, p in named_parameters if include(n, p) and p.requires_grad]
+        rest_params = [
+            p for n, p in named_parameters if include(n, p) and p.requires_grad
+        ]
 
         if args.train_data is None:
             optimizer = None
@@ -208,12 +211,14 @@ def config_lp_optimizer(model, data, args):
                 gain_or_bias_new_params = [
                     p
                     for n, p in named_parameters
-                    if (exclude(n, p) and p.requires_grad) and (not is_pretrained_params(n))
+                    if (exclude(n, p) and p.requires_grad)
+                    and (not is_pretrained_params(n))
                 ]
                 rest_new_params = [
                     p
                     for n, p in named_parameters
-                    if (include(n, p) and p.requires_grad) and (not is_pretrained_params(n))
+                    if (include(n, p) and p.requires_grad)
+                    and (not is_pretrained_params(n))
                 ]
 
                 pretrained_params_optimizer = get_optimizer(
@@ -266,7 +271,9 @@ def config_lp_optimizer(model, data, args):
                         new_params_optimizer, named_parameters=model.named_parameters()
                     )
                     hvd.broadcast_parameters(model.state_dict(), root_rank=0)
-                    hvd.broadcast_optimizer_state(pretrained_params_optimizer, root_rank=0)
+                    hvd.broadcast_optimizer_state(
+                        pretrained_params_optimizer, root_rank=0
+                    )
                     hvd.broadcast_optimizer_state(new_params_optimizer, root_rank=0)
             else:
 
@@ -280,8 +287,10 @@ def config_lp_optimizer(model, data, args):
                     eps=args.eps,
                     momentum=args.momentum,
                     optimizer_name=args.optimizer,
-            )
-                scheduler["clap"] = cosine_lr(optimizer["clap"], args.lr, args.warmup, total_steps)
+                )
+                scheduler["clap"] = cosine_lr(
+                    optimizer["clap"], args.lr, args.warmup, total_steps
+                )
 
                 if args.horovod:
                     optimizer["clap"] = hvd.DistributedOptimizer(
@@ -292,9 +301,17 @@ def config_lp_optimizer(model, data, args):
 
     # linear probe optimizer
     else:
-        lp_params = [p for n, p in named_parameters if (not in_clap(n, p)) and p.requires_grad]
-        lp_optim = get_optimizer(lp_params, lr=args.lp_lr, betas=(args.beta1, args.beta2), eps=args.eps, momentum=0.9,
-                                 optimizer_name=args.optimizer)
+        lp_params = [
+            p for n, p in named_parameters if (not in_clap(n, p)) and p.requires_grad
+        ]
+        lp_optim = get_optimizer(
+            lp_params,
+            lr=args.lp_lr,
+            betas=(args.beta1, args.beta2),
+            eps=args.eps,
+            momentum=0.9,
+            optimizer_name=args.optimizer,
+        )
         optimizer["lp"] = lp_optim
 
     return optimizer, scheduler, text_freeze_parameters
@@ -325,8 +342,7 @@ def main():
         args.name = "-".join(
             [
                 datetime.now().strftime("%Y_%m_%d-%H_%M_%S"),
-                f"linear_probe"
-                f"model_{args.amodel}",
+                f"linear_probe" f"model_{args.amodel}",
                 f"lr_{args.lr}",
                 f"b_{args.batch_size}",
                 f"j_{args.workers}",
@@ -358,7 +374,7 @@ def main():
         postfix = 0
         while os.path.exists(args.log_path):
             postfix += 1
-            log_base_path_new = log_base_path+'-'+str(postfix)
+            log_base_path_new = log_base_path + "-" + str(postfix)
             os.makedirs(log_base_path_new, exist_ok=True)
             log_filename = f"out-{args.rank}" if args.log_local else "out.log"
             args.log_path = os.path.join(log_base_path_new, log_filename)
@@ -413,7 +429,7 @@ def main():
     else:
         logging.info(f"Running with a single process. Device {args.device}.")
 
-    logging.info(f'openai cache dir: {os.path.expanduser(args.openai_model_cache_dir)}')
+    logging.info(f"openai cache dir: {os.path.expanduser(args.openai_model_cache_dir)}")
 
     # Create CLAP model
     clap_model, clap_model_cfg = create_model(
@@ -429,11 +445,11 @@ def main():
         pretrained_audio=args.pretrained_audio,
         pretrained_text=args.pretrained_text,
         enable_fusion=args.enable_fusion,
-        fusion_type=args.fusion_type
+        fusion_type=args.fusion_type,
     )
 
     args.lp_out_ch = len(list(args.class_index_dict.keys()))
-    # Linear Probe 
+    # Linear Probe
     logging.info(f"linear probe using mlp: {args.lp_mlp}")
     logging.info(f"linear probe using freeze: {args.lp_freeze}")
     logging.info(f"linear probe act layer: {args.lp_act}")
@@ -444,10 +460,12 @@ def main():
 
     model = LinearProbe(
         clap_model,
-        mlp=args.lp_mlp, freeze=args.lp_freeze,
-        in_ch=512, out_ch=args.lp_out_ch,
-        act=args.lp_act
-    ) # in_ch is fixed (i.e., 512)
+        mlp=args.lp_mlp,
+        freeze=args.lp_freeze,
+        in_ch=512,
+        out_ch=args.lp_out_ch,
+        act=args.lp_act,
+    )  # in_ch is fixed (i.e., 512)
     model = model.to(device)
 
     if args.horovod:
@@ -485,9 +503,9 @@ def main():
     if args.trace:
         assert "train" not in data, "Cannot train with traced model"
 
-
-    optimizer, scheduler, text_freeze_parameters = config_lp_optimizer(model, data, args)
-
+    optimizer, scheduler, text_freeze_parameters = config_lp_optimizer(
+        model, data, args
+    )
 
     scaler = GradScaler() if args.precision == "amp" else None
 
@@ -580,7 +598,10 @@ def main():
         train_one_epoch(model, data, epoch, optimizer, scaler, scheduler, args, writer)
         completed_epoch = epoch + 1
 
-        if any(v in data for v in ("val", "imagenet-val", "imagenet-v2")) and not args.no_eval:
+        if (
+            any(v in data for v in ("val", "imagenet-val", "imagenet-v2"))
+            and not args.no_eval
+        ):
             metrics = evaluate(model, data, completed_epoch, args, writer)
             if args.save_top_performance:
                 top_k_dataset = args.top_k_checkpoint_select_dataset
@@ -593,8 +614,8 @@ def main():
         # Saving checkpoints.
         if args.save_logs:
             opt_dict = {
-                    k + "_" + "optimizer": v.state_dict() for k, v in optimizer.items()
-                }
+                k + "_" + "optimizer": v.state_dict() for k, v in optimizer.items()
+            }
             checkpoint_dict = {
                 "epoch": completed_epoch,
                 "name": args.name,

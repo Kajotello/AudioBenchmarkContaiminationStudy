@@ -1,27 +1,28 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
 
 
-
 import torch
 
-def keys_in_state_dict(ckpt, device='cpu'):
-    if device=="cpu":
-        a = torch.load(ckpt, map_location=torch.device('cpu'))["state_dict"]
+
+def keys_in_state_dict(ckpt, device="cpu"):
+    if device == "cpu":
+        a = torch.load(ckpt, map_location=torch.device("cpu"))["state_dict"]
     else:
         a = torch.load(ckpt)["state_dict"]
     print("keys_in_state_dict", a.keys())
 
 
-def check_ckpt_diff(ckpt_a, ckpt_b, key_include=None, key_exclude=None, device='cpu', verbose=True):
-    if device=="cpu":
-        a = torch.load(ckpt_a, map_location=torch.device('cpu'))["state_dict"]
-        b = torch.load(ckpt_b, map_location=torch.device('cpu'))["state_dict"]
+def check_ckpt_diff(
+    ckpt_a, ckpt_b, key_include=None, key_exclude=None, device="cpu", verbose=True
+):
+    if device == "cpu":
+        a = torch.load(ckpt_a, map_location=torch.device("cpu"))["state_dict"]
+        b = torch.load(ckpt_b, map_location=torch.device("cpu"))["state_dict"]
     else:
         a = torch.load(ckpt_a)["state_dict"]
         b = torch.load(ckpt_b)["state_dict"]
@@ -47,12 +48,15 @@ def check_ckpt_diff(ckpt_a, ckpt_b, key_include=None, key_exclude=None, device='
         print("difference_count: ", difference_count)
     return bool(a_sum - b_sum)
 
+
 # Transformer no freeze:
 # check_ckpt_diff("/fsx/clap_logs/2022_09_11-19_37_08-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_10.pt", "/fsx/clap_logs/2022_09_11-19_37_08-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_100.pt", "text_branch.resblocks")
 
-check_ckpt_diff("/fsx/clap_logs/2022_09_29-23_42_40-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_1.pt",
-                "/fsx/clap_logs/2022_09_29-23_42_40-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_2.pt",
-                "text_branch.resblocks")
+check_ckpt_diff(
+    "/fsx/clap_logs/2022_09_29-23_42_40-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_1.pt",
+    "/fsx/clap_logs/2022_09_29-23_42_40-model_PANN-14-lr_0.001-b_160-j_4-p_fp32/checkpoints/epoch_2.pt",
+    "text_branch.resblocks",
+)
 
 # key module.text_branch.resblocks.0.attn.in_proj_weight is different
 # key module.text_branch.resblocks.0.attn.in_proj_bias is different
@@ -809,4 +813,3 @@ check_ckpt_diff("/fsx/clap_logs/2022_09_29-23_42_40-model_PANN-14-lr_0.001-b_160
 # b_sum:  tensor(122656.0469)
 # diff:  tensor(-2594.5391)
 # True
-

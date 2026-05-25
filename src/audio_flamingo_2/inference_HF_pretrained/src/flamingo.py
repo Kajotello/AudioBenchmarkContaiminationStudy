@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -44,7 +44,7 @@ class Flamingo(nn.Module):
 
         self.eoc_token_id = eoc_token_id
         self.media_token_id = media_token_id
-        self.sep_token_id = sep_token_id 
+        self.sep_token_id = sep_token_id
 
         # initialize embedding dimensions
         self.clap_embed_dim = clap_embed_dim
@@ -65,24 +65,24 @@ class Flamingo(nn.Module):
         d_inner = audio_transformer_kwargs["d_inner"]
         max_num_media = audio_transformer_kwargs["max_num_media"]
         max_window_per_audio = audio_transformer_kwargs["max_window_per_audio"]
-        
+
         common_encoder_embed_dim = clap_embed_dim
 
         # define the transformers
         assert common_encoder_embed_dim % n_head == 0
         self.audio_transformer_clap = TransformerEncoder(
-            d_word_vec=common_encoder_embed_dim, 
-            n_layers=n_layers, 
-            n_head=n_head, 
-            d_k=common_encoder_embed_dim // n_head, 
+            d_word_vec=common_encoder_embed_dim,
+            n_layers=n_layers,
+            n_head=n_head,
+            d_k=common_encoder_embed_dim // n_head,
             d_v=common_encoder_embed_dim // n_head,
-            d_model=common_encoder_embed_dim, 
-            d_inner=d_inner, 
-            dropout=0.0, 
-            n_position=max_num_media, 
-            scale_emb=True
+            d_model=common_encoder_embed_dim,
+            d_inner=d_inner,
+            dropout=0.0,
+            n_position=max_num_media,
+            scale_emb=True,
         )
-        
+
         self.lang_encoder = lang_encoder
         self.lang_encoder.init_flamingo(
             media_token_id=media_token_id,
@@ -94,13 +94,12 @@ class Flamingo(nn.Module):
         )
 
         self._use_gradient_checkpointing = gradient_checkpointing
-        
+
         # enable gradient checkpoint for the audio transformers
         self.audio_transformer_clap._use_gradient_checkpointing = gradient_checkpointing
 
         # enable gradient checkpoint for encoders
         self.clap._use_gradient_checkpointing = gradient_checkpointing
-
 
     def forward(
         self,
@@ -177,29 +176,36 @@ class Flamingo(nn.Module):
         rearrange code based on https://github.com/dhansmair/flamingo-mini
         """
 
-        assert audio_x.ndim == 3, "audio_x should be of shape (B, num_window, window_length)"
+        assert (
+            audio_x.ndim == 3
+        ), "audio_x should be of shape (B, num_window, window_length)"
 
-        #------------------------------------------------------------------------#
+        # ------------------------------------------------------------------------#
         # get embeddings from CLAP
         audio_embeds = self.clap(audio_x)
         B, L, H, D = audio_embeds.shape  # L is number of windows, D is feature dim
         assert D == self.clap_embed_dim
 
-        audio_x_out = rearrange(audio_embeds, 'b l h d -> b (l h) d')
+        audio_x_out = rearrange(audio_embeds, "b l h d -> b (l h) d")
         # handle the masks
-        expanded_speech_mask = audio_x_mask.repeat_interleave(H, dim=1) # B, (LxH)
+        expanded_speech_mask = audio_x_mask.repeat_interleave(H, dim=1)  # B, (LxH)
         if B > 1 and expanded_speech_mask.shape[0] == 1:
             expanded_speech_mask = expanded_speech_mask.repeat(B, 1)
-        assert expanded_speech_mask.shape[0] == B and expanded_speech_mask.shape[1] == L*H, "{} != ({},{})".format(expanded_speech_mask.shape, B, L*H)
+        assert (
+            expanded_speech_mask.shape[0] == B
+            and expanded_speech_mask.shape[1] == L * H
+        ), "{} != ({},{})".format(expanded_speech_mask.shape, B, L * H)
 
-        #------------------------------------------------------------------------#
-        audio_x_out = self.audio_transformer_clap(audio_x_out, causal_mask = expanded_speech_mask)  # B, LxH, D
+        # ------------------------------------------------------------------------#
+        audio_x_out = self.audio_transformer_clap(
+            audio_x_out, causal_mask=expanded_speech_mask
+        )  # B, LxH, D
 
         # Unsqueeze to handle Falmingo code
         audio_x_out = audio_x_out.unsqueeze(2)  # B, L, n=1, D
         audio_x_mask = expanded_speech_mask.unsqueeze(2)  # B, L, n=1
 
-        #------------------------------------------------------------------------#
+        # ------------------------------------------------------------------------#
 
         for layer in self.lang_encoder._get_decoder_layers():
             layer.condition_audio_x(audio_x_out, audio_x_mask)
@@ -226,12 +232,12 @@ class Flamingo(nn.Module):
                 wrap(wrap(self.lang_encoder.get_input_embeddings()))
             )
 
-            if hasattr(self.lang_encoder, 'set_output_embeddings'):
+            if hasattr(self.lang_encoder, "set_output_embeddings"):
                 self.lang_encoder.set_output_embeddings(
                     wrap(wrap(self.lang_encoder.get_output_embeddings()))
                 )
             else:
-                print('skip wrapping output embeddings')
+                print("skip wrapping output embeddings")
 
         # manually move non-FSDP managed parameters to device_id
         # these are all in lang_encoder
@@ -270,12 +276,14 @@ class Flamingo(nn.Module):
         self.clip_grad_norm_ = clip_grad_norm_
 
     def _condition_media_locations(self, input_ids: torch.Tensor):
-        media_locations = (input_ids == self.media_token_id)
+        media_locations = input_ids == self.media_token_id
 
         for layer in self.lang_encoder._get_decoder_layers():
             layer.condition_media_locations(media_locations)
 
-    def cache_media(self, input_ids: torch.Tensor, audio_x: torch.Tensor, audio_x_mask: torch.Tensor):
+    def cache_media(
+        self, input_ids: torch.Tensor, audio_x: torch.Tensor, audio_x_mask: torch.Tensor
+    ):
         self._encode_audio_x(audio_x=audio_x, audio_x_mask=audio_x_mask)
         self._condition_media_locations(input_ids=input_ids)
         self.lang_encoder._use_cached_audio_x = True

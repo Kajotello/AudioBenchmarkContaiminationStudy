@@ -89,8 +89,11 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         if device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("device='cuda' requested but CUDA is not available.")
 
-        torch_dtype = {"float16": torch.float16, "bfloat16": torch.bfloat16,
-                       "float32": torch.float32}[dtype]
+        torch_dtype = {
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "float32": torch.float32,
+        }[dtype]
 
         repo_root = Path(__file__).resolve().parents[3]
         af2_path = (repo_root / af2_dir).resolve()
@@ -105,9 +108,10 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         with _pushd_and_syspath(af2_path):
             from huggingface_hub import snapshot_download
             from safetensors.torch import load_file
+
             # The AF2 inference package
             from src.factory import create_model_and_transforms  # type: ignore
-            from utils import Dict2Class, get_cast_dtype          # type: ignore
+            from utils import Dict2Class, get_cast_dtype  # type: ignore
 
             # configs/inference.yaml is committed alongside the AF2 source code
             # (it's NOT in the HF snapshot), so load it from af2_path.
@@ -131,6 +135,7 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
             # gets blown out quickly by Qwen2.5 weights. Redirect to the HF
             # hub cache so downloads land on scratch ($HF_HOME / $HF_HUB_CACHE).
             import os as _os
+
             hf_cache_dir = _os.environ.get("HF_HUB_CACHE") or _os.environ.get(
                 "TRANSFORMERS_CACHE"
             )
@@ -156,9 +161,11 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
             # which trips the AF2 / CLAP pickle-based checkpoints (they store
             # numpy scalars). Restore the legacy default just for this load.
             _orig_torch_load = torch.load
+
             def _torch_load_legacy(*args, **kwargs):
                 kwargs.setdefault("weights_only", False)
                 return _orig_torch_load(*args, **kwargs)
+
             torch.load = _torch_load_legacy
             try:
                 model, tokenizer = create_model_and_transforms(
@@ -182,7 +189,9 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
                 metadata = json.load(f)
             state_dict: dict[str, torch.Tensor] = {}
             for chunk_name in metadata:
-                state_dict.update(load_file(str(ckpt_root / f"safe_ckpt/{chunk_name}.safetensors")))
+                state_dict.update(
+                    load_file(str(ckpt_root / f"safe_ckpt/{chunk_name}.safetensors"))
+                )
             missing, unexpected = model.load_state_dict(state_dict, False)
             if missing:
                 log.warning("AF2 missing keys: %d", len(missing))
@@ -199,11 +208,15 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         self._eoc_token_id = tokenizer.encode("<|endofchunk|>")[-1]
         self._audio_token_id = tokenizer.encode("<audio>")[-1]
 
-        log.info("Loaded AudioFlamingo2 from %s onto %s (%s)", hf_repo_id, device, dtype)
+        log.info(
+            "Loaded AudioFlamingo2 from %s onto %s (%s)", hf_repo_id, device, dtype
+        )
 
     # ---------------------------------------------------------------- helpers
 
-    def _tensor_to_clips(self, audio: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _tensor_to_clips(
+        self, audio: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Convert a 1-D audio tensor to (audio_clips, audio_embed_mask).
 
         Re-uses ``inference.load_audio`` by writing the tensor to a temporary WAV.
@@ -228,10 +241,14 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
                     pass
         return clips, mask
 
-    def _tokenize_with_boundary(self, prompt_text: str, full_text: str) -> tuple[torch.Tensor, int]:
+    def _tokenize_with_boundary(
+        self, prompt_text: str, full_text: str
+    ) -> tuple[torch.Tensor, int]:
         """Tokenize the full prompt+target text and return (input_ids, prompt_len)."""
         full = self.tokenizer(full_text, return_tensors="pt", add_special_tokens=False)
-        prompt = self.tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)
+        prompt = self.tokenizer(
+            prompt_text, return_tensors="pt", add_special_tokens=False
+        )
 
         full_ids = full["input_ids"]
         prompt_ids = prompt["input_ids"]
@@ -260,7 +277,9 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
 
         autocast_enabled = self._dtype in (torch.float16, torch.bfloat16)
         with torch.no_grad(), torch.autocast(
-            device_type=device.type, dtype=self._dtype, enabled=autocast_enabled,
+            device_type=device.type,
+            dtype=self._dtype,
+            enabled=autocast_enabled,
         ):
             outputs = self.model(
                 audio_x=audio_x,
@@ -274,7 +293,7 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         shift_labels = lang_x[:, 1:]
 
         target_mask = torch.zeros_like(shift_labels, dtype=torch.bool)
-        target_mask[:, prompt_len - 1:] = True
+        target_mask[:, prompt_len - 1 :] = True
 
         target_logits = shift_logits[target_mask]
         target_labels = shift_labels[target_mask]
@@ -298,14 +317,14 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         mean_log_prob = float(token_log_probs.mean().item())
 
         return {
-            "token_log_probs":     token_log_probs.detach().cpu(),
-            "token_entropies":     entropies.detach().cpu(),
+            "token_log_probs": token_log_probs.detach().cpu(),
+            "token_entropies": entropies.detach().cpu(),
             "token_log_prob_mean": mu.detach().cpu(),
-            "token_log_prob_std":  sigma.detach().cpu(),
-            "mean_log_prob":       mean_log_prob,
-            "mean_nll":           -mean_log_prob,
-            "num_tokens":          n,
-            "sequence_log_prob":   float(token_log_probs.sum().item()),
+            "token_log_prob_std": sigma.detach().cpu(),
+            "mean_log_prob": mean_log_prob,
+            "mean_nll": -mean_log_prob,
+            "num_tokens": n,
+            "sequence_log_prob": float(token_log_probs.sum().item()),
         }
 
     # ---------------------------------------------------------------- API
@@ -357,9 +376,7 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
                 ctx_mask_list.append(cm)
             else:
                 # text-only demonstration
-                ctx_segments.append(
-                    f"{user_prompt}{sep}{ctx_answer}<|endofchunk|>"
-                )
+                ctx_segments.append(f"{user_prompt}{sep}{ctx_answer}<|endofchunk|>")
 
         target_clips, target_mask = self._tensor_to_clips(audio)
 
@@ -383,7 +400,9 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
         prompt_text = f"<audio>{user_prompt}{sep}"
 
         clips, mask = self._tensor_to_clips(audio)
-        ids = self.tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False)["input_ids"]
+        ids = self.tokenizer(
+            prompt_text, return_tensors="pt", add_special_tokens=False
+        )["input_ids"]
 
         device = self._device
         audio_x = clips.unsqueeze(0).to(device, dtype=torch.float32)
@@ -392,7 +411,9 @@ class AudioFlamingo2Wrapper(BaseAudioLanguageModel):
 
         autocast_enabled = self._dtype in (torch.float16, torch.bfloat16)
         with torch.no_grad(), torch.autocast(
-            device_type=device.type, dtype=self._dtype, enabled=autocast_enabled,
+            device_type=device.type,
+            dtype=self._dtype,
+            enabled=autocast_enabled,
         ):
             output = self.model.generate(
                 audio_x=audio_x,

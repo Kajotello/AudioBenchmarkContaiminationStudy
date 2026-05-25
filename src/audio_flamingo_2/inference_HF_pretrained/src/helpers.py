@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -25,6 +25,7 @@ from torch.cuda.amp import autocast
 def exists(val):
     return val is not None
 
+
 def FeedForward(dim, mult=4):
     inner_dim = int(dim * mult)
     return nn.Sequential(
@@ -34,12 +35,14 @@ def FeedForward(dim, mult=4):
         nn.Linear(inner_dim, dim, bias=False),
     )
 
+
 # Transformer (encoder) https://github.com/jadore801120/attention-is-all-you-need-pytorch
 # Original Copyright 2017 Victor Huang
 #  MIT License (https://opensource.org/licenses/MIT)
 
+
 class ScaledDotProductAttention(nn.Module):
-    ''' Scaled Dot-Product Attention '''
+    """Scaled Dot-Product Attention"""
 
     def __init__(self, temperature, attn_dropout=0.1):
         super().__init__()
@@ -60,7 +63,7 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    """Multi-Head Attention module"""
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout=0.1):
         super().__init__()
@@ -74,11 +77,10 @@ class MultiHeadAttention(nn.Module):
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
 
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(temperature=d_k**0.5)
 
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-
 
     def forward(self, q, k, v, mask=None, rotary_frequencies=None):
 
@@ -101,7 +103,7 @@ class MultiHeadAttention(nn.Module):
         k = apply_rotary_pos_emb(k, rotary_frequencies)
 
         if mask is not None:
-            mask = mask.unsqueeze(1).unsqueeze(2)   # For head axis broadcasting.
+            mask = mask.unsqueeze(1).unsqueeze(2)  # For head axis broadcasting.
 
         q, attn = self.attention(q, k, v, mask=mask)
 
@@ -117,12 +119,12 @@ class MultiHeadAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
+    """A two-feed-forward-layer module"""
 
     def __init__(self, d_in, d_hid, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
-        self.w_2 = nn.Linear(d_hid, d_in) # position-wise
+        self.w_1 = nn.Linear(d_in, d_hid)  # position-wise
+        self.w_2 = nn.Linear(d_hid, d_in)  # position-wise
         self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
 
@@ -138,15 +140,16 @@ class PositionwiseFeedForward(nn.Module):
 
         return x
 
+
 class RotaryEmbedding(nn.Module):
     def __init__(
         self,
         dim,
-        use_xpos = False,
-        scale_base = 512,
-        interpolation_factor = 1.,
-        base = 4096,
-        base_rescale_factor = 1.
+        use_xpos=False,
+        scale_base=512,
+        interpolation_factor=1.0,
+        base=4096,
+        base_rescale_factor=1.0,
     ):
         super().__init__()
         # proposed by reddit user bloc97, to rescale rotary embeddings to longer sequence length without fine-tuning
@@ -154,28 +157,28 @@ class RotaryEmbedding(nn.Module):
         # https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/
         base *= base_rescale_factor ** (dim / (dim - 2))
 
-        inv_freq = 1. / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
 
-        assert interpolation_factor >= 1.
+        assert interpolation_factor >= 1.0
         self.interpolation_factor = interpolation_factor
 
         if not use_xpos:
-            self.register_buffer('scale', None)
+            self.register_buffer("scale", None)
             return
 
         scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
 
         self.scale_base = scale_base
-        self.register_buffer('scale', scale)
+        self.register_buffer("scale", scale)
 
     def forward_from_seq_len(self, seq_len):
         device = self.inv_freq.device
 
-        t = torch.arange(seq_len, device = device)
+        t = torch.arange(seq_len, device=device)
         return self.forward(t)
 
-    @autocast(enabled = False)
+    @autocast(enabled=False)
     def forward(self, t):
         device = self.inv_freq.device
 
@@ -183,25 +186,29 @@ class RotaryEmbedding(nn.Module):
 
         t = t / self.interpolation_factor
 
-        freqs = torch.einsum('i , j -> i j', t, self.inv_freq)
-        freqs = torch.cat((freqs, freqs), dim = -1)
+        freqs = torch.einsum("i , j -> i j", t, self.inv_freq)
+        freqs = torch.cat((freqs, freqs), dim=-1)
 
         if self.scale is None:
-            return freqs, 1.
-        
-        power = (torch.arange(seq_len, device = device) - (seq_len // 2)) / self.scale_base
-        scale = self.scale ** rearrange(power, 'n -> n 1')
-        scale = torch.cat((scale, scale), dim = -1)
+            return freqs, 1.0
+
+        power = (
+            torch.arange(seq_len, device=device) - (seq_len // 2)
+        ) / self.scale_base
+        scale = self.scale ** rearrange(power, "n -> n 1")
+        scale = torch.cat((scale, scale), dim=-1)
 
         return freqs, scale
 
-def rotate_half(x):
-    x = rearrange(x, '... (j d) -> ... j d', j = 2)
-    x1, x2 = x.unbind(dim = -2)
-    return torch.cat((-x2, x1), dim = -1)
 
-@autocast(enabled = False)
-def apply_rotary_pos_emb(t, freqs, scale = 1):
+def rotate_half(x):
+    x = rearrange(x, "... (j d) -> ... j d", j=2)
+    x1, x2 = x.unbind(dim=-2)
+    return torch.cat((-x2, x1), dim=-1)
+
+
+@autocast(enabled=False)
+def apply_rotary_pos_emb(t, freqs, scale=1):
     out_dtype = t.dtype
 
     # cast to float32 if necessary for numerical stability
@@ -211,7 +218,7 @@ def apply_rotary_pos_emb(t, freqs, scale = 1):
     freqs = freqs[-seq_len:, :]
 
     if t.ndim == 4 and freqs.ndim == 3:
-        freqs = rearrange(freqs, 'b n d -> b 1 n d')
+        freqs = rearrange(freqs, "b n d -> b 1 n d")
 
     # partial rotary embeddings, Wang et al. GPT-J
     t, t_unrotated = t[..., :rot_dim], t[..., rot_dim:]
@@ -219,31 +226,39 @@ def apply_rotary_pos_emb(t, freqs, scale = 1):
 
     t, t_unrotated = t.to(out_dtype), t_unrotated.to(out_dtype)
 
-    return torch.cat((t, t_unrotated), dim = -1)
+    return torch.cat((t, t_unrotated), dim=-1)
+
 
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_hid, n_position=200):
         super(PositionalEncoding, self).__init__()
-        self.register_buffer('pos_table', self._get_sinusoid_encoding_table(n_position, d_hid))
+        self.register_buffer(
+            "pos_table", self._get_sinusoid_encoding_table(n_position, d_hid)
+        )
 
     def _get_sinusoid_encoding_table(self, n_position, d_hid):
 
         def get_position_angle_vec(position):
-            return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
+            return [
+                position / np.power(10000, 2 * (hid_j // 2) / d_hid)
+                for hid_j in range(d_hid)
+            ]
 
-        sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
+        sinusoid_table = np.array(
+            [get_position_angle_vec(pos_i) for pos_i in range(n_position)]
+        )
         sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
         sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
 
         return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
     def forward(self, x):
-        return x + self.pos_table[:, :x.size(1)].clone().detach()
+        return x + self.pos_table[:, : x.size(1)].clone().detach()
 
 
 class EncoderLayer(nn.Module):
-    ''' Compose with two layers '''
+    """Compose with two layers"""
 
     def __init__(self, d_model, d_inner, n_head, d_k, d_v, dropout=0.0):
         super(EncoderLayer, self).__init__()
@@ -252,34 +267,54 @@ class EncoderLayer(nn.Module):
 
     def forward(self, enc_input, slf_attn_mask=None, rotary_frequencies=None):
         enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask, rotary_frequencies=rotary_frequencies)
+            enc_input,
+            enc_input,
+            enc_input,
+            mask=slf_attn_mask,
+            rotary_frequencies=rotary_frequencies,
+        )
         enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 
 
 class TransformerEncoder(nn.Module):
-    ''' A encoder model with self attention mechanism. '''
+    """A encoder model with self attention mechanism."""
 
     def __init__(
-            self, d_word_vec=512, n_layers=6, n_head=8, d_k=64, d_v=64,
-            d_model=512, d_inner=2048, dropout=0.0, n_position=16, scale_emb=True):
+        self,
+        d_word_vec=512,
+        n_layers=6,
+        n_head=8,
+        d_k=64,
+        d_v=64,
+        d_model=512,
+        d_inner=2048,
+        dropout=0.0,
+        n_position=16,
+        scale_emb=True,
+    ):
 
         super().__init__()
 
         if n_position > 0:
             dim_head = d_word_vec // n_head
-            self.position_enc = RotaryEmbedding(max(dim_head // 2, 32)) #PositionalEncoding(d_word_vec, n_position=n_position)
+            self.position_enc = RotaryEmbedding(
+                max(dim_head // 2, 32)
+            )  # PositionalEncoding(d_word_vec, n_position=n_position)
         else:
             self.position_enc = lambda x: x
         self.dropout = nn.Dropout(p=dropout)
-        self.layer_stack = nn.ModuleList([
-            EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
-            for _ in range(n_layers)])
+        self.layer_stack = nn.ModuleList(
+            [
+                EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
+                for _ in range(n_layers)
+            ]
+        )
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
         self.scale_emb = scale_emb
         self.d_model = d_model
 
-    def forward(self, src_seq, causal_mask = None, return_attns=False):
+    def forward(self, src_seq, causal_mask=None, return_attns=False):
         if len(src_seq.shape) == 2:
             src_seq = src_seq.unsqueeze(1)
         B, L, D = src_seq.shape
@@ -290,7 +325,7 @@ class TransformerEncoder(nn.Module):
 
         enc_output = src_seq
         if self.scale_emb:
-            enc_output = enc_output * self.d_model ** 0.5
+            enc_output = enc_output * self.d_model**0.5
         # --------- #
         # Apply rotary position embeddings
         pos_emb = self.position_enc.forward_from_seq_len(enc_output.shape[1])
@@ -300,7 +335,9 @@ class TransformerEncoder(nn.Module):
         enc_output = self.layer_norm(enc_output)
 
         for enc_layer in self.layer_stack:
-            enc_output, enc_slf_attn = enc_layer(enc_output, slf_attn_mask=causal_mask, rotary_frequencies=freqs)
+            enc_output, enc_slf_attn = enc_layer(
+                enc_output, slf_attn_mask=causal_mask, rotary_frequencies=freqs
+            )
             enc_slf_attn_list += [enc_slf_attn] if return_attns else []
 
         if return_attns:
@@ -315,7 +352,7 @@ class MaskedCrossAttention(nn.Module):
         *,
         dim,
         dim_audio,
-        max_window_per_audio, 
+        max_window_per_audio,
         dim_head=64,
         heads=8,
         only_attend_immediate_media=True,
@@ -335,11 +372,7 @@ class MaskedCrossAttention(nn.Module):
         self.only_attend_immediate_media = only_attend_immediate_media
 
     def forward(
-        self, 
-        x, 
-        media, media_mask, 
-        media_locations=None, 
-        use_cached_media=False
+        self, x, media, media_mask, media_locations=None, use_cached_media=False
     ):
 
         if not use_cached_media:
@@ -366,7 +399,9 @@ class MaskedCrossAttention(nn.Module):
         sim = einsum("... i d, ... j d -> ... i j", q, k)
 
         # mask padded audio embeddings
-        media_mask = rearrange(media_mask, "b i n -> b 1 1 (i n)").bool()  # n = 1 is extra dim
+        media_mask = rearrange(
+            media_mask, "b i n -> b 1 1 (i n)"
+        ).bool()  # n = 1 is extra dim
         sim = sim.masked_fill(~media_mask, -torch.finfo(sim.dtype).max)
 
         assert self.only_attend_immediate_media is False
@@ -392,7 +427,7 @@ class GatedCrossAttentionBlock(nn.Module):
         *,
         dim,
         dim_audio,
-        max_window_per_audio, 
+        max_window_per_audio,
         dim_head=64,
         heads=8,
         ff_mult=4,
@@ -436,10 +471,10 @@ class GatedCrossAttentionBlock(nn.Module):
         return x
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     enc = TransformerEncoder().cuda()
     x = torch.randn(2, 1000, 512).cuda()
     mask = torch.ones(2, 1000).cuda()
-    output = enc(x,causal_mask=mask)
+    output = enc(x, causal_mask=mask)
     enc._use_gradient_checkpointing = True
     print(output.shape)

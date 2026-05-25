@@ -17,7 +17,11 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         if device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("device='cuda' requested but CUDA is not available.")
 
-        torch_dtype = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}[dtype]
+        torch_dtype = {
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "float32": torch.float32,
+        }[dtype]
 
         self.processor = AutoProcessor.from_pretrained(model_id)
         self.model = AudioFlamingo3ForConditionalGeneration.from_pretrained(
@@ -68,26 +72,38 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
           - mean_log_prob, mean_nll, num_tokens, sequence_log_prob
         """
         conversation = [
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt or "Describe the audio."},
-                {"type": "audio", "audio": audio.numpy()},
-            ]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt or "Describe the audio."},
+                    {"type": "audio", "audio": audio.numpy()},
+                ],
+            },
             {"role": "assistant", "content": [{"type": "text", "text": target_text}]},
         ]
         full_inputs = self.processor.apply_chat_template(
-            conversation, tokenize=True, add_generation_prompt=False,
-            return_dict=True, return_tensors="pt",
+            conversation,
+            tokenize=True,
+            add_generation_prompt=False,
+            return_dict=True,
+            return_tensors="pt",
         )
 
         prompt_conversation = [
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt or "Describe the audio."},
-                {"type": "audio", "audio": audio.numpy()},
-            ]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt or "Describe the audio."},
+                    {"type": "audio", "audio": audio.numpy()},
+                ],
+            },
         ]
         prompt_inputs = self.processor.apply_chat_template(
-            prompt_conversation, tokenize=True, add_generation_prompt=True,
-            return_dict=True, return_tensors="pt",
+            prompt_conversation,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
         )
         prompt_len = prompt_inputs["input_ids"].shape[1]
 
@@ -97,56 +113,60 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         ), "Prompt token prefix mismatch — label boundary is wrong"
 
         device = next(self.model.parameters()).device
-        full_inputs = {k: (v.to(device) if isinstance(v, torch.Tensor) else v)
-                       for k, v in full_inputs.items()}
+        full_inputs = {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in full_inputs.items()
+        }
         for k, v in full_inputs.items():
             if isinstance(v, torch.Tensor) and v.is_floating_point():
                 full_inputs[k] = v.to(self._dtype)
 
         outputs = self.model(**full_inputs)
-        logits = outputs.logits                                       # (1, T, V)
+        logits = outputs.logits  # (1, T, V)
 
         # Causal shift, fp32 for log_softmax numerical stability
-        shift_logits = logits[:, :-1, :].float()                      # (1, T-1, V)
-        shift_labels = full_inputs["input_ids"][:, 1:]                # (1, T-1)
+        shift_logits = logits[:, :-1, :].float()  # (1, T-1, V)
+        shift_labels = full_inputs["input_ids"][:, 1:]  # (1, T-1)
 
         target_mask = torch.zeros_like(shift_labels, dtype=torch.bool)
-        target_mask[:, prompt_len - 1:] = True
+        target_mask[:, prompt_len - 1 :] = True
 
         # Slice down to target positions first — saves memory on the big (N,V) ops
-        target_logits = shift_logits[target_mask]                     # (N, V)
-        target_labels = shift_labels[target_mask]                     # (N,)
+        target_logits = shift_logits[target_mask]  # (N, V)
+        target_labels = shift_labels[target_mask]  # (N,)
         if target_labels.numel() == 0:
             raise ValueError("No valid target tokens found for scoring.")
 
-        log_probs = torch.log_softmax(target_logits, dim=-1)          # (N, V)
-        probs = log_probs.exp()                                       # (N, V)
+        log_probs = torch.log_softmax(target_logits, dim=-1)  # (N, V)
+        probs = log_probs.exp()  # (N, V)
 
         token_log_probs = log_probs.gather(
             dim=-1, index=target_labels.unsqueeze(-1)
-        ).squeeze(-1)                                                 # (N,)
+        ).squeeze(
+            -1
+        )  # (N,)
 
         # μ_t = Σ_v p_v · log p_v  (== -H_t)
-        mu = (probs * log_probs).sum(dim=-1)                          # (N,)
-        entropies = -mu                                               # (N,)
+        mu = (probs * log_probs).sum(dim=-1)  # (N,)
+        entropies = -mu  # (N,)
 
         # σ_t² = Σ_v p_v · (log p_v)² − μ_t²
         second_moment = (probs * log_probs.pow(2)).sum(dim=-1)
         var = (second_moment - mu.pow(2)).clamp_min(1e-8)
-        sigma = var.sqrt()                                            # (N,)
+        sigma = var.sqrt()  # (N,)
 
         n = int(token_log_probs.numel())
         mean_log_prob = float(token_log_probs.mean().item())
 
         return {
-            "token_log_probs":     token_log_probs.detach().cpu(),
-            "token_entropies":     entropies.detach().cpu(),
+            "token_log_probs": token_log_probs.detach().cpu(),
+            "token_entropies": entropies.detach().cpu(),
             "token_log_prob_mean": mu.detach().cpu(),
-            "token_log_prob_std":  sigma.detach().cpu(),
-            "mean_log_prob":       mean_log_prob,
-            "mean_nll":           -mean_log_prob,
-            "num_tokens":          n,
-            "sequence_log_prob":   float(token_log_probs.sum().item()),
+            "token_log_prob_std": sigma.detach().cpu(),
+            "mean_log_prob": mean_log_prob,
+            "mean_nll": -mean_log_prob,
+            "num_tokens": n,
+            "sequence_log_prob": float(token_log_probs.sum().item()),
         }
 
     @torch.no_grad()
@@ -156,14 +176,15 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         target_texts: list[str],
         prompt: str | None = None,
     ) -> list[dict[str, Any]]:
-        assert len(audios) == len(target_texts), \
-            "audios and target_texts must be the same length"
+        assert len(audios) == len(
+            target_texts
+        ), "audios and target_texts must be the same length"
         batch_size = len(audios)
         user_prompt = prompt or "Describe the audio."
 
         tokenizer = self.processor.tokenizer
         old_padding_side = tokenizer.padding_side
-        tokenizer.padding_side = "right"           # required for our label-boundary math
+        tokenizer.padding_side = "right"  # required for our label-boundary math
         if tokenizer.pad_token_id is None:
             # decoder-only tokenizers often ship without an explicit pad token
             tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -177,48 +198,71 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
             for audio, target_text in zip(audios, target_texts):
                 audio_np = (
                     audio.detach().cpu().numpy()
-                    if isinstance(audio, torch.Tensor) else np.asarray(audio)
+                    if isinstance(audio, torch.Tensor)
+                    else np.asarray(audio)
                 )
                 full_conv = [
-                    {"role": "user", "content": [
-                        {"type": "text", "text": user_prompt},
-                        {"type": "audio", "audio": audio_np},
-                    ]},
-                    {"role": "assistant", "content": [
-                        {"type": "text", "text": target_text},
-                    ]},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {"type": "audio", "audio": audio_np},
+                        ],
+                    },
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": target_text},
+                        ],
+                    },
                 ]
                 prompt_conv = [
-                    {"role": "user", "content": [
-                        {"type": "text", "text": user_prompt},
-                        {"type": "audio", "audio": audio_np},
-                    ]},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {"type": "audio", "audio": audio_np},
+                        ],
+                    },
                 ]
-                per_full.append(self.processor.apply_chat_template(
-                    full_conv, tokenize=True, add_generation_prompt=False,
-                    return_dict=True, return_tensors="pt",
-                ))
-                per_prompt.append(self.processor.apply_chat_template(
-                    prompt_conv, tokenize=True, add_generation_prompt=True,
-                    return_dict=True, return_tensors="pt",
-                ))
+                per_full.append(
+                    self.processor.apply_chat_template(
+                        full_conv,
+                        tokenize=True,
+                        add_generation_prompt=False,
+                        return_dict=True,
+                        return_tensors="pt",
+                    )
+                )
+                per_prompt.append(
+                    self.processor.apply_chat_template(
+                        prompt_conv,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_dict=True,
+                        return_tensors="pt",
+                    )
+                )
 
             # --- Step 2: collate text + concat audio
             prompt_lens = [p["input_ids"].shape[1] for p in per_prompt]
-            full_lens   = [f["input_ids"].shape[1] for f in per_full]
-            max_len     = max(full_lens)
-            pad_id      = tokenizer.pad_token_id
+            full_lens = [f["input_ids"].shape[1] for f in per_full]
+            max_len = max(full_lens)
+            pad_id = tokenizer.pad_token_id
 
             batch_input_ids = torch.full(
-                (batch_size, max_len), pad_id, dtype=per_full[0]["input_ids"].dtype,
+                (batch_size, max_len),
+                pad_id,
+                dtype=per_full[0]["input_ids"].dtype,
             )
             batch_attn = torch.zeros(
-                (batch_size, max_len), dtype=per_full[0]["attention_mask"].dtype,
+                (batch_size, max_len),
+                dtype=per_full[0]["attention_mask"].dtype,
             )
             for b, fin in enumerate(per_full):
                 L = full_lens[b]
                 batch_input_ids[b, :L] = fin["input_ids"][0]
-                batch_attn[b, :L]      = fin["attention_mask"][0]
+                batch_attn[b, :L] = fin["attention_mask"][0]
 
             # Pass through every remaining tensor key the processor returned
             # (input_features, input_features_mask, anything else AF3 adds in future
@@ -257,23 +301,23 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
 
             # --- Step 5: forward
             outputs = self.model(**batch)
-            logits = outputs.logits                              # (B, T, V)
+            logits = outputs.logits  # (B, T, V)
             input_ids = batch["input_ids"]
             attn = batch["attention_mask"]
 
-            shift_logits = logits[:, :-1, :].float()             # fp32 for log_softmax
+            shift_logits = logits[:, :-1, :].float()  # fp32 for log_softmax
             shift_labels = input_ids[:, 1:]
-            shift_attn   = attn[:, 1:]
+            shift_attn = attn[:, 1:]
 
             results: list[dict[str, Any]] = []
             for b in range(batch_size):
                 p_len = prompt_lens[b]
                 mask = torch.zeros_like(shift_labels[b], dtype=torch.bool)
-                mask[p_len - 1:] = True
+                mask[p_len - 1 :] = True
                 mask &= shift_attn[b].bool()
 
-                target_logits_b = shift_logits[b][mask]          # (N_b, V)
-                target_labels_b = shift_labels[b][mask]          # (N_b,)
+                target_logits_b = shift_logits[b][mask]  # (N_b, V)
+                target_labels_b = shift_labels[b][mask]  # (N_b,)
                 if target_labels_b.numel() == 0:
                     raise ValueError(f"No valid target tokens for batch item {b}.")
 
@@ -292,16 +336,18 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
                 n = int(token_log_probs.numel())
                 mean_log_prob = float(token_log_probs.mean().item())
 
-                results.append({
-                    "token_log_probs":     token_log_probs.detach().cpu(),
-                    "token_entropies":     entropies.detach().cpu(),
-                    "token_log_prob_mean": mu.detach().cpu(),
-                    "token_log_prob_std":  sigma.detach().cpu(),
-                    "mean_log_prob":       mean_log_prob,
-                    "mean_nll":           -mean_log_prob,
-                    "num_tokens":          n,
-                    "sequence_log_prob":   float(token_log_probs.sum().item()),
-                })
+                results.append(
+                    {
+                        "token_log_probs": token_log_probs.detach().cpu(),
+                        "token_entropies": entropies.detach().cpu(),
+                        "token_log_prob_mean": mu.detach().cpu(),
+                        "token_log_prob_std": sigma.detach().cpu(),
+                        "mean_log_prob": mean_log_prob,
+                        "mean_nll": -mean_log_prob,
+                        "num_tokens": n,
+                        "sequence_log_prob": float(token_log_probs.sum().item()),
+                    }
+                )
 
             return results
         finally:
@@ -337,27 +383,40 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         for ctx_audio, ctx_answer in context:
             include_audio = (mode == "full") and (ctx_audio is not None)
             full_conv.append(_user_turn(ctx_audio, include_audio))
-            full_conv.append({"role": "assistant",
-                              "content": [{"type": "text", "text": ctx_answer}]})
+            full_conv.append(
+                {"role": "assistant", "content": [{"type": "text", "text": ctx_answer}]}
+            )
 
         # Target turn — always with target audio
-        full_conv.append({"role": "user", "content": [
-            {"type": "text", "text": user_prompt},
-            {"type": "audio", "audio": audio.numpy()},
-        ]})
-        full_conv.append({"role": "assistant",
-                          "content": [{"type": "text", "text": target_text}]})
+        full_conv.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt},
+                    {"type": "audio", "audio": audio.numpy()},
+                ],
+            }
+        )
+        full_conv.append(
+            {"role": "assistant", "content": [{"type": "text", "text": target_text}]}
+        )
 
         # Prompt-only (no target answer) version, used to locate the label boundary
-        prompt_conv = full_conv[:-1]   # drop the last assistant turn
+        prompt_conv = full_conv[:-1]  # drop the last assistant turn
 
         full_inputs = self.processor.apply_chat_template(
-            full_conv, tokenize=True, add_generation_prompt=False,
-            return_dict=True, return_tensors="pt",
+            full_conv,
+            tokenize=True,
+            add_generation_prompt=False,
+            return_dict=True,
+            return_tensors="pt",
         )
         prompt_inputs = self.processor.apply_chat_template(
-            prompt_conv, tokenize=True, add_generation_prompt=True,
-            return_dict=True, return_tensors="pt",
+            prompt_conv,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
         )
         prompt_len = prompt_inputs["input_ids"].shape[1]
 
@@ -367,8 +426,10 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         ), "Prompt token prefix mismatch — label boundary is wrong"
 
         device = next(self.model.parameters()).device
-        full_inputs = {k: (v.to(device) if isinstance(v, torch.Tensor) else v)
-                       for k, v in full_inputs.items()}
+        full_inputs = {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in full_inputs.items()
+        }
         for k, v in full_inputs.items():
             if isinstance(v, torch.Tensor) and v.is_floating_point():
                 full_inputs[k] = v.to(self._dtype)
@@ -380,7 +441,7 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         shift_labels = full_inputs["input_ids"][:, 1:]
 
         target_mask = torch.zeros_like(shift_labels, dtype=torch.bool)
-        target_mask[:, prompt_len - 1:] = True
+        target_mask[:, prompt_len - 1 :] = True
 
         target_logits = shift_logits[target_mask]
         target_labels = shift_labels[target_mask]
@@ -404,14 +465,14 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
         mean_log_prob = float(token_log_probs.mean().item())
 
         return {
-            "token_log_probs":     token_log_probs.detach().cpu(),
-            "token_entropies":     entropies.detach().cpu(),
+            "token_log_probs": token_log_probs.detach().cpu(),
+            "token_entropies": entropies.detach().cpu(),
             "token_log_prob_mean": mu.detach().cpu(),
-            "token_log_prob_std":  sigma.detach().cpu(),
-            "mean_log_prob":       mean_log_prob,
-            "mean_nll":           -mean_log_prob,
-            "num_tokens":          n,
-            "sequence_log_prob":   float(token_log_probs.sum().item()),
+            "token_log_prob_std": sigma.detach().cpu(),
+            "mean_log_prob": mean_log_prob,
+            "mean_nll": -mean_log_prob,
+            "num_tokens": n,
+            "sequence_log_prob": float(token_log_probs.sum().item()),
         }
 
     @torch.no_grad()
@@ -433,12 +494,15 @@ class AudioFlamingoWrapper(BaseAudioLanguageModel):
             return_tensors="pt",
         )
 
-        full_inputs = {k: (v.to(self._device) if isinstance(v, torch.Tensor) else v) for k, v in full_inputs.items()}
+        full_inputs = {
+            k: (v.to(self._device) if isinstance(v, torch.Tensor) else v)
+            for k, v in full_inputs.items()
+        }
         for k, v in full_inputs.items():
             if isinstance(v, torch.Tensor) and v.is_floating_point():
                 full_inputs[k] = v.to(self._dtype)
 
         generated = self.model.generate(**full_inputs, max_new_tokens=128)
         return self.processor.batch_decode(
-            generated[:, full_inputs["input_ids"].shape[1]:], skip_special_tokens=True
+            generated[:, full_inputs["input_ids"].shape[1] :], skip_special_tokens=True
         )[0]

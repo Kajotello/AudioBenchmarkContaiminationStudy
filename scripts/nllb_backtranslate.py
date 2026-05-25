@@ -34,7 +34,9 @@ class NllbRoundTripTranslator:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         dtype = torch.float16 if device == "cuda" else torch.float32
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name, torch_dtype=dtype)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_name, torch_dtype=dtype
+        )
         self.model = self.model.to(device)
         self.model.eval()
 
@@ -44,7 +46,9 @@ class NllbRoundTripTranslator:
     def cache_size(self) -> int:
         return len(self._cache)
 
-    def _translate_batch(self, texts: list[str], src_lang: str, tgt_lang: str) -> list[str]:
+    def _translate_batch(
+        self, texts: list[str], src_lang: str, tgt_lang: str
+    ) -> list[str]:
         if not texts:
             return []
 

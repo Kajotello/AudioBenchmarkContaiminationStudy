@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 
@@ -85,7 +85,7 @@ def init_distributed_device(args):
 
     if args.horovod:
         assert hvd is not None, "Horovod is not installed"
-        print('using horovod')
+        print("using horovod")
         hvd.init()
         args.local_rank = int(hvd.local_rank())
         args.rank = hvd.rank()
@@ -97,7 +97,7 @@ def init_distributed_device(args):
 
     elif is_using_distributed():
         if "SLURM_PROCID" in os.environ:
-            print('DDP via SLURM')
+            print("DDP via SLURM")
             args.local_rank, args.rank, args.world_size = world_info_from_env()
 
             # SLURM var -> torch.distributed vars in case needed
@@ -121,7 +121,7 @@ def init_distributed_device(args):
                 rank=args.rank,
             )
         else:
-            print('DDP via torchrun, torch.distributed.launch')
+            print("DDP via torchrun, torch.distributed.launch")
             args.local_rank, _, _ = world_info_from_env()
             torch.distributed.init_process_group(
                 backend=args.dist_backend, init_method=args.dist_url
@@ -130,7 +130,7 @@ def init_distributed_device(args):
             args.rank = torch.distributed.get_rank()
         args.distributed = True
     else:
-        print('needed to run on single gpu')
+        print("needed to run on single gpu")
         torch.distributed.init_process_group(
             backend=args.dist_backend,
             init_method=args.dist_url,

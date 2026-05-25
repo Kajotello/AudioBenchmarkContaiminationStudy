@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 import os
@@ -17,19 +17,22 @@ from huggingface_hub import snapshot_download
 from src.factory import create_model_and_transforms
 from utils import Dict2Class, get_autocast, get_cast_dtype
 
+
 def int16_to_float32(x):
     return (x / 32767.0).astype(np.float32)
 
+
 def float32_to_int16(x):
-    x = np.clip(x, a_min=-1., a_max=1.)
-    return (x * 32767.).astype(np.int16)
+    x = np.clip(x, a_min=-1.0, a_max=1.0)
+    return (x * 32767.0).astype(np.int16)
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def get_num_windows(T, sr, clap_config):
 
-    window_length  = int(float(clap_config["window_length"]) * sr)
+    window_length = int(float(clap_config["window_length"]) * sr)
     window_overlap = int(float(clap_config["window_overlap"]) * sr)
     max_num_window = int(clap_config["max_num_window"])
 
@@ -39,27 +42,31 @@ def get_num_windows(T, sr, clap_config):
         full_length = window_length
     elif T >= (max_num_window * window_length - (max_num_window - 1) * window_overlap):
         num_windows = max_num_window
-        full_length = (max_num_window * window_length - (max_num_window - 1) * window_overlap)
+        full_length = (
+            max_num_window * window_length - (max_num_window - 1) * window_overlap
+        )
     else:
-        num_windows = 1 + int(np.ceil((T - window_length) / float(window_length - window_overlap)))
+        num_windows = 1 + int(
+            np.ceil((T - window_length) / float(window_length - window_overlap))
+        )
         full_length = num_windows * window_length - (num_windows - 1) * window_overlap
-    
+
     return num_windows, full_length
 
 
 def read_audio(file_path, target_sr, duration, start, clap_config):
 
-    if file_path.endswith('.mp3'):
+    if file_path.endswith(".mp3"):
         audio = AudioSegment.from_file(file_path)
         if len(audio) > (start + duration) * 1000:
-            audio = audio[start * 1000:(start + duration) * 1000]
+            audio = audio[start * 1000 : (start + duration) * 1000]
 
         if audio.frame_rate != target_sr:
             audio = audio.set_frame_rate(target_sr)
 
         if audio.channels > 1:
             audio = audio.set_channels(1)
-        
+
         data = np.array(audio.get_array_of_samples())
         if audio.sample_width == 2:
             data = data.astype(np.float32) / np.iinfo(np.int16).max
@@ -81,33 +88,43 @@ def read_audio(file_path, target_sr, duration, start, clap_config):
 
             if data.max() > 1 or data.min() < -1:
                 data = data / max(abs(data.max()), abs(data.min()))
-        
+
         if original_sr != target_sr:
             if channels == 1:
-                data = librosa.resample(data.flatten(), orig_sr=original_sr, target_sr=target_sr)
+                data = librosa.resample(
+                    data.flatten(), orig_sr=original_sr, target_sr=target_sr
+                )
             else:
-                data = librosa.resample(data.T, orig_sr=original_sr, target_sr=target_sr)[0]
+                data = librosa.resample(
+                    data.T, orig_sr=original_sr, target_sr=target_sr
+                )[0]
         else:
             if channels != 1:
                 data = data.T[0]
-    
+
     if data.min() >= 0:
         data = 2 * data / abs(data.max()) - 1.0
     else:
         data = data / max(abs(data.max()), abs(data.min()))
-    
+
     assert len(data.shape) == 1, data.shape
     return data
+
 
 def load_audio(audio_path, clap_config):
 
     sr = 16000
-    window_length  = int(float(clap_config["window_length"]) * sr)
+    window_length = int(float(clap_config["window_length"]) * sr)
     window_overlap = int(float(clap_config["window_overlap"]) * sr)
     max_num_window = int(clap_config["max_num_window"])
-    duration = max_num_window * (clap_config["window_length"] - clap_config["window_overlap"]) + clap_config["window_overlap"]
+    duration = (
+        max_num_window * (clap_config["window_length"] - clap_config["window_overlap"])
+        + clap_config["window_overlap"]
+    )
 
-    audio_data = read_audio(audio_path, sr, duration, 0.0, clap_config) # hard code audio start to 0.0
+    audio_data = read_audio(
+        audio_path, sr, duration, 0.0, clap_config
+    )  # hard code audio start to 0.0
     T = len(audio_data)
     num_windows, full_length = get_num_windows(T, sr, clap_config)
 
@@ -116,13 +133,15 @@ def load_audio(audio_path, clap_config):
         audio_data = np.append(audio_data, np.zeros(full_length - T))
 
     audio_data = audio_data.reshape(1, -1)
-    audio_data_tensor = torch.from_numpy(int16_to_float32(float32_to_int16(audio_data))).float()
+    audio_data_tensor = torch.from_numpy(
+        int16_to_float32(float32_to_int16(audio_data))
+    ).float()
 
     audio_clips = []
     audio_embed_mask = torch.ones(num_windows)
     for i in range(num_windows):
         start = i * (window_length - window_overlap)
-        audio_data_tensor_this = audio_data_tensor[:, start:start+window_length]
+        audio_data_tensor_this = audio_data_tensor[:, start : start + window_length]
         audio_clips.append(audio_data_tensor_this)
 
     if len(audio_clips) > max_num_window:
@@ -130,14 +149,17 @@ def load_audio(audio_path, clap_config):
         audio_embed_mask = audio_embed_mask[:max_num_window]
 
     audio_clips = torch.cat(audio_clips)
-    
+
     return audio_clips, audio_embed_mask
+
 
 def predict(filepath, question, clap_config, inference_kwargs):
 
     audio_clips, audio_embed_mask = load_audio(filepath, clap_config)
     audio_clips = audio_clips.to(device_id, dtype=cast_dtype, non_blocking=True)
-    audio_embed_mask = audio_embed_mask.to(device_id, dtype=cast_dtype, non_blocking=True)
+    audio_embed_mask = audio_embed_mask.to(
+        device_id, dtype=cast_dtype, non_blocking=True
+    )
 
     text_prompt = str(question).lower()
 
@@ -148,7 +170,7 @@ def predict(filepath, question, clap_config, inference_kwargs):
         max_length=1024,
         padding="longest",
         truncation="only_first",
-        return_tensors="pt"
+        return_tensors="pt",
     )
 
     input_ids = text["input_ids"].to(device_id, non_blocking=True)
@@ -164,20 +186,30 @@ def predict(filepath, question, clap_config, inference_kwargs):
             max_new_tokens=1024,
             **inference_kwargs,
         )[0]
-    
-    output_decoded = tokenizer.decode(output).split(tokenizer.sep_token)[-1].replace(tokenizer.eos_token, '').replace(tokenizer.pad_token, '').replace('<|endofchunk|>', '')
+
+    output_decoded = (
+        tokenizer.decode(output)
+        .split(tokenizer.sep_token)[-1]
+        .replace(tokenizer.eos_token, "")
+        .replace(tokenizer.pad_token, "")
+        .replace("<|endofchunk|>", "")
+    )
     output_decoded = output_decoded.lower()
 
-    if '<reasoning>' in output_decoded and '</conclusion>' not in output_decoded:
-        print("re-do generation; no conclusion tag found in output: {}".format(output_decoded))
+    if "<reasoning>" in output_decoded and "</conclusion>" not in output_decoded:
+        print(
+            "re-do generation; no conclusion tag found in output: {}".format(
+                output_decoded
+            )
+        )
 
-        if '</reasoning>' in output_decoded:
-            current_output_decoded = output_decoded.split('</reasoning>')[0]
+        if "</reasoning>" in output_decoded:
+            current_output_decoded = output_decoded.split("</reasoning>")[0]
         else:
             if len(output_decoded) >= 512:
                 output_decoded = output_decoded[:512].strip()
-            current_output_decoded = output_decoded[:output_decoded.rfind('.')]
-        current_output_decoded += '</REASONING>\n<CONCLUSION>'
+            current_output_decoded = output_decoded[: output_decoded.rfind(".")]
+        current_output_decoded += "</REASONING>\n<CONCLUSION>"
 
         new_sample = sample + current_output_decoded
 
@@ -187,7 +219,7 @@ def predict(filepath, question, clap_config, inference_kwargs):
             max_length=1024,
             padding="longest",
             truncation="only_first",
-            return_tensors="pt"
+            return_tensors="pt",
         )
 
         input_ids = text["input_ids"].to(device_id, non_blocking=True)
@@ -203,12 +235,18 @@ def predict(filepath, question, clap_config, inference_kwargs):
                 max_new_tokens=1024,
                 **inference_kwargs,
             )[0]
-        
-        output_decoded = tokenizer.decode(output).split(tokenizer.sep_token)[-1].replace(tokenizer.eos_token, '').replace(tokenizer.pad_token, '').replace('<|endofchunk|>', '')
+
+        output_decoded = (
+            tokenizer.decode(output)
+            .split(tokenizer.sep_token)[-1]
+            .replace(tokenizer.eos_token, "")
+            .replace(tokenizer.pad_token, "")
+            .replace("<|endofchunk|>", "")
+        )
         output_decoded = output_decoded.lower()
 
-    print('Prompt: ', question)
-    print('Audio Flamingo 2: ', output_decoded)
+    print("Prompt: ", question)
+    print("Audio Flamingo 2: ", output_decoded)
 
     return output_decoded
 
@@ -219,18 +257,22 @@ if __name__ == "__main__":
     parser.add_argument("--input", "-i", type=str, help="Path to input JSON file")
     parsed_args = parser.parse_args()
 
-    snapshot_download(repo_id="nvidia/audio-flamingo-2-SoundCoT", local_dir="./", token="YOUR_HF_TOKEN")
+    snapshot_download(
+        repo_id="nvidia/audio-flamingo-2-SoundCoT",
+        local_dir="./",
+        token="YOUR_HF_TOKEN",
+    )
 
     config = yaml.load(open("configs/inference_CoT.yaml"), Loader=yaml.FullLoader)
 
-    data_config = config['data_config']
-    model_config = config['model_config']
-    clap_config = config['clap_config']
-    args = Dict2Class(config['train_config'])
+    data_config = config["data_config"]
+    model_config = config["model_config"]
+    clap_config = config["clap_config"]
+    args = Dict2Class(config["train_config"])
 
     model, tokenizer = create_model_and_transforms(
         **model_config,
-        clap_config=clap_config, 
+        clap_config=clap_config,
         use_local_files=args.offline,
         gradient_checkpointing=args.gradient_checkpointing,
         freeze_lm_embeddings=args.freeze_lm_embeddings,
@@ -257,9 +299,7 @@ if __name__ == "__main__":
 
     missing_keys, unexpected_keys = model.load_state_dict(state_dict, False)
 
-    autocast = get_autocast(
-        args.precision, cache_enabled=(not args.fsdp)
-    )
+    autocast = get_autocast(args.precision, cache_enabled=(not args.fsdp))
 
     cast_dtype = get_cast_dtype(args.precision)
 
@@ -272,8 +312,8 @@ if __name__ == "__main__":
         "do_sample": True,
         "top_k": 30,
         "top_p": 0.95,
-        "num_return_sequences": 1
+        "num_return_sequences": 1,
     }
 
     for item in data:
-        predict(item['path'], item['prompt'], clap_config, inference_kwargs)
+        predict(item["path"], item["prompt"], clap_config, inference_kwargs)

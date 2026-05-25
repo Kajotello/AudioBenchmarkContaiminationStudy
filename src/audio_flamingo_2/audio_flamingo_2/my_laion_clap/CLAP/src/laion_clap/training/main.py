@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import logging
@@ -252,7 +250,7 @@ def main():
         pretrained_audio=args.pretrained_audio,
         pretrained_text=args.pretrained_text,
         enable_fusion=args.enable_fusion,
-        fusion_type=args.fusion_type
+        fusion_type=args.fusion_type,
     )
 
     if args.horovod:
@@ -302,11 +300,7 @@ def main():
     named_parameters = list(model.named_parameters())
 
     # freeze text encoder
-    text_freeze_parameters = [
-        p
-        for n, p in named_parameters
-        if 'text_branch' in n
-    ]
+    text_freeze_parameters = [p for n, p in named_parameters if "text_branch" in n]
 
     if args.freeze_text:
         print("Freeze Text!!!!")
@@ -369,7 +363,7 @@ def main():
                 eps=args.eps_pretrained,
                 momentum=args.momentum_pretrained,
                 optimizer_name=args.optimizer,
-                )
+            )
             pretrained_params_scheduler = cosine_lr(
                 pretrained_params_optimizer,
                 args.lr_pretrained,
@@ -386,7 +380,7 @@ def main():
                 eps=args.eps_new,
                 momentum=args.momentum_new,
                 optimizer_name=args.optimizer,
-                )
+            )
 
             new_params_scheduler = cosine_lr(
                 new_params_optimizer, args.lr_new, args.warmup, total_steps

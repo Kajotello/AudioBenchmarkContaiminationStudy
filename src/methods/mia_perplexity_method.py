@@ -6,6 +6,7 @@ The original perplexity-threshold MIA baseline. Score = perplexity
 
 Convention: lower perplexity => more likely member.
 """
+
 from __future__ import annotations
 
 import math

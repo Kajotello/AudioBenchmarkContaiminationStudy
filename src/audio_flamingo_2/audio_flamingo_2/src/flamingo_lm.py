@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -38,7 +38,11 @@ class FlamingoLayer(nn.Module):
 
     def is_conditioned(self) -> bool:
         """Check whether the layer is conditioned."""
-        return (self.audio_x is not None) and (self.audio_x_mask is not None) and (self.media_locations is not None)
+        return (
+            (self.audio_x is not None)
+            and (self.audio_x_mask is not None)
+            and (self.media_locations is not None)
+        )
 
     def condition_audio_x(self, sound_x, sound_x_mask):
         self.sound_x = sound_x
@@ -72,7 +76,7 @@ class FlamingoLayer(nn.Module):
                 media_locations=self.media_locations,
                 use_cached_media=self.use_cached_media,
             )
-        
+
         # Normal decoder layer
         lang_x = self.decoder_layer(
             lang_x, attention_mask=attention_mask, **decoder_layer_kwargs
@@ -109,14 +113,16 @@ class FlamingoLMMixin(nn.Module):
         self.old_decoder_blocks = self._get_decoder_layers()
         self.gated_cross_attn_layers_sound = nn.ModuleList(
             [
-                GatedCrossAttentionBlock(
-                    dim=lang_hidden_size, 
-                    dim_audio=audio_hidden_size,
-                    max_window_per_audio=max_window_per_audio, 
-                    only_attend_immediate_media=False,
+                (
+                    GatedCrossAttentionBlock(
+                        dim=lang_hidden_size,
+                        dim_audio=audio_hidden_size,
+                        max_window_per_audio=max_window_per_audio,
+                        only_attend_immediate_media=False,
+                    )
+                    if (layer_idx + 1) % cross_attn_every_n_layers == 0
+                    else None
                 )
-                if (layer_idx + 1) % cross_attn_every_n_layers == 0
-                else None
                 for layer_idx, _ in enumerate(self._get_decoder_layers())
             ]
         )
@@ -135,7 +141,9 @@ class FlamingoLMMixin(nn.Module):
             nn.ModuleList(
                 [
                     FlamingoLayer(
-                        gated_cross_attn_layers_sound, decoder_layer, gradient_checkpointing
+                        gated_cross_attn_layers_sound,
+                        decoder_layer,
+                        gradient_checkpointing,
                     )
                     for gated_cross_attn_layers_sound, decoder_layer in zip(
                         self.gated_cross_attn_layers_sound, self.old_decoder_blocks

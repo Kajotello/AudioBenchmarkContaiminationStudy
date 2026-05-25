@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import numpy as np
@@ -30,4 +28,5 @@ def cosine_lr(optimizer, base_lr, warmup_length, steps):
             lr = 0.5 * (1 + np.cos(np.pi * e / es)) * base_lr
         assign_learning_rate(optimizer, lr)
         return lr
+
     return _lr_adjuster

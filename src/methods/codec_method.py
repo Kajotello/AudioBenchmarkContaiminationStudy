@@ -20,6 +20,7 @@ Two modes are supported:
   - "full"     (default): context demonstration = (prompt + audio + answer)
   - "no_audio":           context demonstration = (prompt + answer), no context audio
 """
+
 from __future__ import annotations
 
 import random
@@ -43,7 +44,9 @@ class CoDeCMethod(MethodBaseClass):
         if mode not in ("full", "no_audio"):
             raise ValueError(f"mode must be 'full' or 'no_audio', got {mode!r}")
         if num_context_examples < 1:
-            raise ValueError(f"num_context_examples must be >= 1, got {num_context_examples}")
+            raise ValueError(
+                f"num_context_examples must be >= 1, got {num_context_examples}"
+            )
 
         self.num_context_examples = num_context_examples
         self.mode = mode
@@ -79,7 +82,8 @@ class CoDeCMethod(MethodBaseClass):
         return log_probs[start:end]
 
     def _sample_context(
-        self, exclude_text: str | None,
+        self,
+        exclude_text: str | None,
     ) -> list[tuple[torch.Tensor, str]]:
         if not self._context_pool:
             raise RuntimeError(
@@ -101,11 +105,16 @@ class CoDeCMethod(MethodBaseClass):
         context = self._sample_context(exclude_text=text)
 
         sd_no_ctx = model.score_text_given_audio(
-            audio=audio, target_text=text, prompt=self.prompt,
+            audio=audio,
+            target_text=text,
+            prompt=self.prompt,
         )
         sd_with_ctx = model.score_text_given_audio_with_context(
-            audio=audio, target_text=text, context=context,
-            prompt=self.prompt, mode=self.mode,
+            audio=audio,
+            target_text=text,
+            context=context,
+            prompt=self.prompt,
+            mode=self.mode,
         )
 
         lp_no = self._trim(sd_no_ctx["token_log_probs"])

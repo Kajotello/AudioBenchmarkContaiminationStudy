@@ -12,6 +12,7 @@ Raw score (higher = more likely member):
 
 We negate.
 """
+
 from __future__ import annotations
 
 from typing import Any

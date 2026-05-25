@@ -11,6 +11,7 @@ Paper's raw score (higher = more likely member):
 
 We negate so that lower score => more likely member (project convention).
 """
+
 from __future__ import annotations
 
 from typing import Any

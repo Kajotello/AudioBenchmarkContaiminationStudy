@@ -12,7 +12,13 @@ from omegaconf import DictConfig
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-from src.utils import RankedLogger, extras, init_wandb_run, log_wandb_metrics, task_wrapper
+from src.utils import (
+    RankedLogger,
+    extras,
+    init_wandb_run,
+    log_wandb_metrics,
+    task_wrapper,
+)
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -60,7 +66,9 @@ def _compute_roc_auc(labels: list[int], scores: list[float]) -> float:
     return float(auc)
 
 
-def _compute_best_threshold_accuracy(labels: list[int], scores: list[float]) -> tuple[float, float]:
+def _compute_best_threshold_accuracy(
+    labels: list[int], scores: list[float]
+) -> tuple[float, float]:
     """
     Find the best threshold on scores.
 
@@ -104,17 +112,25 @@ def _score_dataset(
     else:
         indices = list(range(n))
 
-    use_batch = hasattr(method, "run_batch") and hasattr(model, "score_text_given_audio_batch")
+    use_batch = hasattr(method, "run_batch") and hasattr(
+        model, "score_text_given_audio_batch"
+    )
 
     if not use_batch:
         # original per-sample path
         for idx in indices:
             audio, text = dataset[idx]
             score = float(method.run(model=model, audio=audio, text=text))
-            results.append({
-                "idx": idx, "split": split_name, "label": label,
-                "score": score, "text": text, "text_length_chars": len(text),
-            })
+            results.append(
+                {
+                    "idx": idx,
+                    "split": split_name,
+                    "label": label,
+                    "score": score,
+                    "text": text,
+                    "text_length_chars": len(text),
+                }
+            )
         return results
 
     # batched path
@@ -128,11 +144,16 @@ def _score_dataset(
             texts.append(t)
         scores = method.run_batch(model=model, audios=audios, texts=texts)
         for i, idx in enumerate(batch_idx):
-            results.append({
-                "idx": idx, "split": split_name, "label": label,
-                "score": float(scores[i]),
-                "text": texts[i], "text_length_chars": len(texts[i]),
-            })
+            results.append(
+                {
+                    "idx": idx,
+                    "split": split_name,
+                    "label": label,
+                    "score": float(scores[i]),
+                    "text": texts[i],
+                    "text_length_chars": len(texts[i]),
+                }
+            )
     return results
 
 
@@ -220,8 +241,16 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         "method_name": cfg.method._target_,
         "num_members": len(member_results),
         "num_non_members": len(non_member_results),
-        "member_score_mean": float(sum(member_scores) / len(member_scores)) if member_scores else float("nan"),
-        "non_member_score_mean": float(sum(non_member_scores) / len(non_member_scores)) if non_member_scores else float("nan"),
+        "member_score_mean": (
+            float(sum(member_scores) / len(member_scores))
+            if member_scores
+            else float("nan")
+        ),
+        "non_member_score_mean": (
+            float(sum(non_member_scores) / len(non_member_scores))
+            if non_member_scores
+            else float("nan")
+        ),
         "roc_auc": roc_auc,
         "best_threshold": best_threshold,
         "best_accuracy": best_acc,

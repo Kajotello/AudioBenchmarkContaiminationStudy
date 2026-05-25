@@ -60,7 +60,7 @@ try:
 
     outputs = model.generate(**inputs, max_new_tokens=500)
     decoded = processor.batch_decode(
-        outputs[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True
+        outputs[:, inputs["input_ids"].shape[1] :], skip_special_tokens=True
     )
 
     print("\n--- Model output ---")

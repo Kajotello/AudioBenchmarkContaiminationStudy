@@ -8,20 +8,20 @@ from lightning import LightningModule
 class BaseAudioLanguageModel(LightningModule):
     @abstractmethod
     def score_text_given_audio(
-            self,
-            audio: torch.Tensor,
-            target_text: str,
-            prompt: str | None = None,
+        self,
+        audio: torch.Tensor,
+        target_text: str,
+        prompt: str | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError
 
     def score_text_given_audio_with_context(
-            self,
-            audio: torch.Tensor,
-            target_text: str,
-            context: list[tuple[torch.Tensor | None, str]],
-            prompt: str | None = None,
-            mode: str = "full",
+        self,
+        audio: torch.Tensor,
+        target_text: str,
+        context: list[tuple[torch.Tensor | None, str]],
+        prompt: str | None = None,
+        mode: str = "full",
     ) -> dict[str, Any]:
         """Score target_text given a target audio plus N in-context examples.
 

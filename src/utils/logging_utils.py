@@ -38,7 +38,11 @@ def dataset_short_name(data_cfg: Optional[DictConfig]) -> str:
 
 
 def build_wandb_group(cfg: DictConfig) -> str:
-    wb_group = cfg.get("logger", {}).get("wandb", {}).get("group") if cfg.get("logger") else None
+    wb_group = (
+        cfg.get("logger", {}).get("wandb", {}).get("group")
+        if cfg.get("logger")
+        else None
+    )
     if wb_group:
         return str(wb_group)
     method = target_short_name(str(cfg.method._target_))

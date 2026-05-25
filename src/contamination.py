@@ -5,6 +5,7 @@ non-member dataset pair, producing per-sample scores and aggregate metrics.
 
 Re-uses scoring + metric helpers from ``src/eval.py`` to avoid duplication.
 """
+
 from __future__ import annotations
 
 import csv
@@ -24,7 +25,13 @@ from src.eval_mia import (
     _compute_roc_auc,
     _score_dataset,
 )
-from src.utils import RankedLogger, extras, init_wandb_run, log_wandb_metrics, task_wrapper
+from src.utils import (
+    RankedLogger,
+    extras,
+    init_wandb_run,
+    log_wandb_metrics,
+    task_wrapper,
+)
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -92,18 +99,26 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
     log.info("Scoring member dataset...")
     with torch.no_grad():
         member_results = _score_dataset(
-            model=model, method=method, dataset=member_dataset,
-            label=1, split_name="member",
-            max_samples=max_member_samples, batch_size=batch_size,
+            model=model,
+            method=method,
+            dataset=member_dataset,
+            label=1,
+            split_name="member",
+            max_samples=max_member_samples,
+            batch_size=batch_size,
             seed=seed,
         )
 
     log.info("Scoring non-member dataset...")
     with torch.no_grad():
         non_member_results = _score_dataset(
-            model=model, method=method, dataset=non_member_dataset,
-            label=0, split_name="non_member",
-            max_samples=max_non_member_samples, batch_size=batch_size,
+            model=model,
+            method=method,
+            dataset=non_member_dataset,
+            label=0,
+            split_name="non_member",
+            max_samples=max_non_member_samples,
+            batch_size=batch_size,
             seed=seed + 1,
         )
 
@@ -125,20 +140,24 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
         "num_non_members": len(non_member_results),
         "member_score_mean": (
             float(sum(member_scores) / len(member_scores))
-            if member_scores else float("nan")
+            if member_scores
+            else float("nan")
         ),
         "non_member_score_mean": (
             float(sum(non_member_scores) / len(non_member_scores))
-            if non_member_scores else float("nan")
+            if non_member_scores
+            else float("nan")
         ),
         # Score(D) = (1/N) * sum_i 1[delta(x_i) < 0]
         "member_normalized_score": (
             float(sum(1 for s in member_scores if s < 0) / len(member_scores))
-            if member_scores else float("nan")
+            if member_scores
+            else float("nan")
         ),
         "non_member_normalized_score": (
             float(sum(1 for s in non_member_scores if s < 0) / len(non_member_scores))
-            if non_member_scores else float("nan")
+            if non_member_scores
+            else float("nan")
         ),
         "roc_auc": roc_auc,
         "best_threshold": best_threshold,
@@ -171,7 +190,9 @@ def detect_contamination(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any
     return metric_dict, object_dict
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="contamination.yaml")
+@hydra.main(
+    version_base="1.3", config_path="../configs", config_name="contamination.yaml"
+)
 def main(cfg: DictConfig) -> None:
     extras(cfg)
     detect_contamination(cfg)

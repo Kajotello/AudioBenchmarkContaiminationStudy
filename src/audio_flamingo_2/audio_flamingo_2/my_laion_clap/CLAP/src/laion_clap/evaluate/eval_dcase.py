@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import torch
@@ -37,17 +35,28 @@ def get_output_from_single_audio(audio, text, model, device):
     # CHANGE: before normalize or after
     audio_features_mlp = model.audio_transform(audio_features)
     text_features_mlp = model.text_transform(text_features)
-    return audio_features, text_features, audio_features_mlp, text_features_mlp, model.logit_scale_a.exp(), model.logit_scale_t.exp()
+    return (
+        audio_features,
+        text_features,
+        audio_features_mlp,
+        text_features_mlp,
+        model.logit_scale_a.exp(),
+        model.logit_scale_t.exp(),
+    )
 
 
 def get_metrics(text_to_audio_logits):
     metrics = {}
 
     # repeat ground truth 5 times because Clotho has 5 text for 1 audio
-    ground_truth = torch.repeat_interleave(torch.arange(len(text_features) // 5), 5).view(-1, 1)
+    ground_truth = torch.repeat_interleave(
+        torch.arange(len(text_features) // 5), 5
+    ).view(-1, 1)
 
     ranking = torch.argsort(text_to_audio_logits, descending=True)
-    preds = torch.where(ranking == ground_truth)[1]  # (yusong) this line is slow because it uses single thread
+    preds = torch.where(ranking == ground_truth)[
+        1
+    ]  # (yusong) this line is slow because it uses single thread
     preds = preds.detach().cpu().numpy()
     metrics[f"mean_rank"] = preds.mean() + 1
     metrics[f"median_rank"] = np.floor(np.median(preds)) + 1
@@ -58,7 +67,7 @@ def get_metrics(text_to_audio_logits):
     return metrics
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
 
     model_path = args.pretrained
@@ -75,8 +84,7 @@ if __name__ == '__main__':
     logit_scale_a_ensemble_all = []
     logit_scale_t_ensemble_all = []
 
-
-    device = torch.device('cuda')
+    device = torch.device("cuda")
     model, clap_model_cfg = create_model(
         args.amodel,
         args.tmodel,
@@ -86,7 +94,7 @@ if __name__ == '__main__':
         jit=args.torchscript,
         force_quick_gelu=args.force_quick_gelu,
         openai_model_cache_dir=os.path.expanduser(args.openai_model_cache_dir),
-        skip_params=False
+        skip_params=False,
     )
 
     # load model
@@ -95,10 +103,8 @@ if __name__ == '__main__':
         # resuming a train checkpoint w/ epoch and optimizer state
         start_epoch = checkpoint["epoch"]
         sd = checkpoint["state_dict"]
-        if next(iter(sd.items()))[0].startswith(
-                "module"
-        ):
-            sd = {k[len("module."):]: v for k, v in sd.items()}
+        if next(iter(sd.items()))[0].startswith("module"):
+            sd = {k[len("module.") :]: v for k, v in sd.items()}
         model.load_state_dict(sd)
     else:
         # loading a bare (model only) checkpoint for fine-tune or evaluation
@@ -126,18 +132,26 @@ if __name__ == '__main__':
                 json_data = json.load(f)
             audio, sr = librosa.load(file_path, sr=48000, mono=True)
             audio = torch.from_numpy(audio).to(device)
-            audio = {'waveform': audio.unsqueeze(0), 'sample_rate': sr}
+            audio = {"waveform": audio.unsqueeze(0), "sample_rate": sr}
             text = json_data["text"]
 
             if args.tmodel == "transformer":
                 from open_clip import tokenize
+
                 text = tokenize(text)
             else:
                 from laion_clap.training.data import tokenizer
+
                 text = tokenizer(text, tmodel=args.tmodel)  # 5 texts for each audio
 
-            audio_features, text_features, audio_features_mlp, text_features_mlp, logit_scale_a, logit_scale_t = \
-                get_output_from_single_audio(audio, text, model, device)
+            (
+                audio_features,
+                text_features,
+                audio_features_mlp,
+                text_features_mlp,
+                logit_scale_a,
+                logit_scale_t,
+            ) = get_output_from_single_audio(audio, text, model, device)
 
             audio_features_all.append(audio_features.detach().cpu())
             text_features_all.append(text_features.detach().cpu())
@@ -150,11 +164,11 @@ if __name__ == '__main__':
     text_features = torch.cat(text_features_all)
     logit_scale_a = logit_scale_a_all[0]
 
-    logits_per_audio = (logit_scale_a * audio_features @ text_features.t()).detach().cpu()
+    logits_per_audio = (
+        (logit_scale_a * audio_features @ text_features.t()).detach().cpu()
+    )
     logits_per_text = logits_per_audio.t().detach().cpu()
 
-    metrics = get_metrics(
-        logits_per_text
-    )
+    metrics = get_metrics(logits_per_text)
 
     print(metrics)

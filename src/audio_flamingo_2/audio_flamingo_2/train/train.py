@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -10,11 +10,13 @@ import argparse
 import functools
 import glob
 import os
+
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 import random
 import shutil
-import sys 
-sys.path.append('../')
+import sys
+
+sys.path.append("../")
 import yaml
 import time
 
@@ -37,7 +39,8 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 )
 from torch.distributed.fsdp._init_utils import _init_intra_and_inter_node_groups
 from torch.distributed.distributed_c10d import _get_default_group
-torch.cuda.empty_cache() 
+
+torch.cuda.empty_cache()
 
 from transformers import (
     get_constant_schedule_with_warmup,
@@ -52,8 +55,8 @@ from train_utils import (
     get_mp_policy_dtype,
     save_checkpoint,
     Dict2Class,
-    get_autocast, 
-    get_cast_dtype
+    get_autocast,
+    get_cast_dtype,
 )
 from valid_utils import validation_losses
 from src.factory import create_model_and_transforms
@@ -67,28 +70,36 @@ def random_seed(seed=42, rank=0):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='../config/config.yaml', help='yaml config path')
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="../config/config.yaml",
+        help="yaml config path",
+    )
     parsed_args = parser.parse_args()
 
     config = yaml.load(open(parsed_args.config), Loader=yaml.FullLoader)
-    data_config = config['data_config']
-    model_config = config['model_config']
+    data_config = config["data_config"]
+    model_config = config["model_config"]
     clap_config = config["clap_config"]
-    args = Dict2Class(config['train_config'])
+    args = Dict2Class(config["train_config"])
 
-    if 'sft_config' in config:
-        sft_config = config['sft_config']
-        unfreeze_full_lm = sft_config['unfreeze_full_lm']
+    if "sft_config" in config:
+        sft_config = config["sft_config"]
+        unfreeze_full_lm = sft_config["unfreeze_full_lm"]
     else:
         sft_config = None
         unfreeze_full_lm = False
 
-    # get paths done 
+    # get paths done
     exp_path = os.path.join(args.expdir, args.run_name)
     os.makedirs(exp_path, exist_ok=True)
-    print('exp_path:', exp_path)
-    shutil.copy(parsed_args.config, os.path.join(exp_path, 'config.yaml'))
-    data_config["dataset_blending_output"] = os.path.join(exp_path, data_config["dataset_blending_output"])
+    print("exp_path:", exp_path)
+    shutil.copy(parsed_args.config, os.path.join(exp_path, "config.yaml"))
+    data_config["dataset_blending_output"] = os.path.join(
+        exp_path, data_config["dataset_blending_output"]
+    )
 
     # Validate args
     if args.fsdp and not args.fsdp_use_orig_params:
@@ -108,7 +119,7 @@ def main():
         )
 
     # Set up distributed training
-    print('initializing distributed environment')
+    print("initializing distributed environment")
     if args.offline:
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
     args.local_rank, args.rank, args.world_size = world_info_from_env()
@@ -116,15 +127,17 @@ def main():
     random_seed(args.seed)
 
     # Initialize model
-    print('creating model')
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # disable the tokenizer parallelism warning
+    print("creating model")
+    os.environ["TOKENIZERS_PARALLELISM"] = (
+        "false"  # disable the tokenizer parallelism warning
+    )
     model, tokenizer = create_model_and_transforms(
         **model_config,
         clap_config=clap_config,
         use_local_files=args.offline,
         gradient_checkpointing=args.gradient_checkpointing,
         freeze_lm_embeddings=args.freeze_lm_embeddings,
-        unfreeze_full_lm=unfreeze_full_lm
+        unfreeze_full_lm=unfreeze_full_lm,
     )
     random_seed(args.seed, args.rank)
 
@@ -140,17 +153,14 @@ def main():
         resume_from_checkpoint = sorted(
             checkpoint_list, key=lambda x: int(x.split("_")[-1].split(".")[0])
         )[-1]
-        print(
-            f"Found checkpoint {resume_from_checkpoint} for run {args.run_name}."
-        )
+        print(f"Found checkpoint {resume_from_checkpoint} for run {args.run_name}.")
 
     # load pretrained model
     resume_from_epoch = 0
     if (resume_from_checkpoint is None) and (sft_config is not None):
         # just started SFT
         pretrained_path = os.path.join(
-            sft_config['pretrained_path'],
-            sft_config['pretrained_ckpt']
+            sft_config["pretrained_path"], sft_config["pretrained_ckpt"]
         )
         if args.rank == 0:
             print(f"Loading checkpoint from {pretrained_path}")
@@ -163,7 +173,6 @@ def main():
             model.load_state_dict(msd, False)
             del checkpoint["model_state_dict"]
             del msd
-
 
     elif resume_from_checkpoint is not None:
         # continue training (either pretraining or STF)
@@ -179,7 +188,7 @@ def main():
             model.load_state_dict(msd, False)
             del checkpoint["model_state_dict"]
             del msd
-    
+
     else:
         pass
 
@@ -218,9 +227,11 @@ def main():
             cpu_offload=CPUOffload(offload_params=False),
             device_id=device_id,
             sync_module_states=True,  # broadcast loaded ckpt from rank 0 -> all ranks
-            sharding_strategy=ShardingStrategy.FULL_SHARD
-            if args.fsdp_sharding_strategy == "full"
-            else ShardingStrategy.HYBRID_SHARD,
+            sharding_strategy=(
+                ShardingStrategy.FULL_SHARD
+                if args.fsdp_sharding_strategy == "full"
+                else ShardingStrategy.HYBRID_SHARD
+            ),
             use_orig_params=args.fsdp_use_orig_params,
             mixed_precision=mp_policy,
             forward_prefetch=True,
@@ -301,8 +312,13 @@ def main():
 
     # Initialize data loaders
     AudioTextDataInfo = get_audiotext_dataloader(
-        data_config, clap_config, tokenizer, args.batch_size, split='train',
-        epoch=0, force_reblend=True
+        data_config,
+        clap_config,
+        tokenizer,
+        args.batch_size,
+        split="train",
+        epoch=0,
+        force_reblend=True,
     )
 
     total_training_steps = (
@@ -311,7 +327,7 @@ def main():
 
     if args.rank == 0:
         print(f"Total training steps: {total_training_steps}")
-        tb = SummaryWriter(os.path.join(exp_path, 'tensorboard'))
+        tb = SummaryWriter(os.path.join(exp_path, "tensorboard"))
     else:
         tb = None
 
@@ -341,17 +357,22 @@ def main():
     # Start training!
     ddp_model.train()
 
-    print('start training from epoch {}'.format(resume_from_epoch))
+    print("start training from epoch {}".format(resume_from_epoch))
     for epoch in range(resume_from_epoch, args.num_epochs):
         # force reblending dataset for every epoch
         if epoch > 0:
             AudioTextDataInfo = get_audiotext_dataloader(
-                data_config, clap_config, tokenizer, args.batch_size, split='train',
-                epoch=epoch, force_reblend=True
+                data_config,
+                clap_config,
+                tokenizer,
+                args.batch_size,
+                split="train",
+                epoch=epoch,
+                force_reblend=True,
             )
         AudioTextDataInfo.set_epoch(epoch)
         trainloader = AudioTextDataInfo.dataloader
-        
+
         # train one epoch
         train_one_epoch(
             args=args,
@@ -362,38 +383,44 @@ def main():
             lr_scheduler=lr_scheduler,
             trainloader=trainloader,
             device_id=device_id,
-            tb=tb
+            tb=tb,
         )
 
         # save checkpoint
         save_checkpoint(ddp_model, optimizer, lr_scheduler, epoch, args)
         time.sleep(1.0)
 
-        # validation 
+        # validation
         if epoch % 5 == 0:
             torch.distributed.barrier()
             try:
                 with torch.no_grad():
                     valid_losses = validation_losses(
-                        model=ddp_model, 
-                        data_config=data_config, 
-                        clap_config=clap_config, 
-                        tokenizer=tokenizer, 
-                        batch_size=args.batch_size, 
-                        autocast=get_autocast(args.precision, cache_enabled=(not args.fsdp)), 
+                        model=ddp_model,
+                        data_config=data_config,
+                        clap_config=clap_config,
+                        tokenizer=tokenizer,
+                        batch_size=args.batch_size,
+                        autocast=get_autocast(
+                            args.precision, cache_enabled=(not args.fsdp)
+                        ),
                         cast_dtype=get_cast_dtype(args.precision),
-                        device_id=device_id
+                        device_id=device_id,
                     )
 
                 if args.rank == 0:
                     for key in valid_losses:
-                        tb.add_scalar("Valid/{}".format(key), valid_losses[key], (epoch+1)*len(trainloader))
-            
+                        tb.add_scalar(
+                            "Valid/{}".format(key),
+                            valid_losses[key],
+                            (epoch + 1) * len(trainloader),
+                        )
+
             except Exception as error:
                 print("An exception occurred:", error)
-                
+
             torch.distributed.barrier()
-        
+
     # save final checkpoint
     save_checkpoint(ddp_model, optimizer, lr_scheduler, epoch, args)
     if args.rank == 0:

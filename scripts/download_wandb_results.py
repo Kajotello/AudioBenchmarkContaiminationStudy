@@ -53,16 +53,24 @@ _MIA_METHODS = {
 _MIA_KINDS = frozenset(_MIA_METHODS.values())
 
 _CODEC_REQUIRED = (
-    "num_members", "num_non_members",
-    "member_score_mean", "non_member_score_mean",
+    "num_members",
+    "num_non_members",
+    "member_score_mean",
+    "non_member_score_mean",
 )
 _MM_DETECT_MEMBER_REQUIRED = (
     "member_num_samples",
-    "member_cr", "member_pcr", "member_delta", "member_phi",
+    "member_cr",
+    "member_pcr",
+    "member_delta",
+    "member_phi",
 )
 _MM_DETECT_REQUIRED = _MM_DETECT_MEMBER_REQUIRED + (
     "non_member_num_samples",
-    "non_member_cr", "non_member_pcr", "non_member_delta", "non_member_phi",
+    "non_member_cr",
+    "non_member_pcr",
+    "non_member_delta",
+    "non_member_phi",
 )
 _MIA_REQUIRED = ("num_members", "num_non_members", "roc_auc")
 
@@ -70,6 +78,7 @@ _MIA_REQUIRED = ("num_members", "num_non_members", "roc_auc")
 # ---------------------------------------------------------------------------
 # Field resolvers
 # ---------------------------------------------------------------------------
+
 
 def _model_version(model_cfg: dict[str, Any]) -> str | None:
     """Pick a readable model identifier from the model config.
@@ -115,14 +124,25 @@ def _summary_has_keys(summary: Any, keys: tuple[str, ...]) -> bool:
 # Run → rows
 # ---------------------------------------------------------------------------
 
-def _codec_rows(run, model_version: str, member_ds: str, non_member_ds: str) -> list[dict[str, Any]]:
+
+def _codec_rows(
+    run, model_version: str, member_ds: str, non_member_ds: str
+) -> list[dict[str, Any]]:
     s = run.summary
     base = {
         "run_id": run.id,
         "run_url": run.url,
         "created_at": run.created_at,
-        "member_normalized_score": float(s["member_normalized_score"]) if "member_normalized_score" in s else None,
-        "non_member_normalized_score": float(s["non_member_normalized_score"]) if "non_member_normalized_score" in s else None,
+        "member_normalized_score": (
+            float(s["member_normalized_score"])
+            if "member_normalized_score" in s
+            else None
+        ),
+        "non_member_normalized_score": (
+            float(s["non_member_normalized_score"])
+            if "non_member_normalized_score" in s
+            else None
+        ),
     }
     return [
         {
@@ -144,7 +164,13 @@ def _codec_rows(run, model_version: str, member_ds: str, non_member_ds: str) -> 
     ]
 
 
-def _mm_detect_rows(run, model_version: str, member_ds: str, non_member_ds: str | None, is_single_split: bool) -> list[dict[str, Any]]:
+def _mm_detect_rows(
+    run,
+    model_version: str,
+    member_ds: str,
+    non_member_ds: str | None,
+    is_single_split: bool,
+) -> list[dict[str, Any]]:
     s = run.summary
     base = {
         "run_id": run.id,
@@ -165,21 +191,25 @@ def _mm_detect_rows(run, model_version: str, member_ds: str, non_member_ds: str 
         },
     ]
     if not is_single_split:
-        rows.append({
-            "model_version": model_version,
-            "dataset": non_member_ds,
-            "is_member": 0,
-            "cr": float(s["non_member_cr"]),
-            "pcr": float(s["non_member_pcr"]),
-            "delta": float(s["non_member_delta"]),
-            "phi": float(s["non_member_phi"]),
-            "num_samples": int(s["non_member_num_samples"]),
-            **base,
-        })
+        rows.append(
+            {
+                "model_version": model_version,
+                "dataset": non_member_ds,
+                "is_member": 0,
+                "cr": float(s["non_member_cr"]),
+                "pcr": float(s["non_member_pcr"]),
+                "delta": float(s["non_member_delta"]),
+                "phi": float(s["non_member_phi"]),
+                "num_samples": int(s["non_member_num_samples"]),
+                **base,
+            }
+        )
     return rows
 
 
-def _mia_row(run, method_kind: str, model_version: str, member_ds: str) -> dict[str, Any]:
+def _mia_row(
+    run, method_kind: str, model_version: str, member_ds: str
+) -> dict[str, Any]:
     s = run.summary
     return {
         "method": method_kind,
@@ -199,7 +229,10 @@ def _mia_row(run, method_kind: str, model_version: str, member_ds: str) -> dict[
 # Main pipeline
 # ---------------------------------------------------------------------------
 
-def collect(entity: str, project: str, include_smoke: bool) -> tuple[list[dict], list[dict], list[dict], dict[str, int]]:
+
+def collect(
+    entity: str, project: str, include_smoke: bool
+) -> tuple[list[dict], list[dict], list[dict], dict[str, int]]:
     api = wandb.Api()
     counts = defaultdict(int)
     # group_key -> (sample_total, created_at, kind, model_version, member_ds, non_member_ds, is_single_split, run)
@@ -239,12 +272,19 @@ def collect(entity: str, project: str, include_smoke: bool) -> tuple[list[dict],
             if not _summary_has_keys(run.summary, _MIA_REQUIRED):
                 counts["dropped_missing_summary"] += 1
                 continue
-            sample_total = int(run.summary["num_members"]) + int(run.summary["num_non_members"])
+            sample_total = int(run.summary["num_members"]) + int(
+                run.summary["num_non_members"]
+            )
             key = (kind, model_version, member_ds, None)
 
         elif kind == "mm_detect":
-            is_single_split = "non_member_num_samples" not in run.summary or run.summary.get("non_member_num_samples") is None
-            required = _MM_DETECT_MEMBER_REQUIRED if is_single_split else _MM_DETECT_REQUIRED
+            is_single_split = (
+                "non_member_num_samples" not in run.summary
+                or run.summary.get("non_member_num_samples") is None
+            )
+            required = (
+                _MM_DETECT_MEMBER_REQUIRED if is_single_split else _MM_DETECT_REQUIRED
+            )
             if not _summary_has_keys(run.summary, required):
                 counts["dropped_missing_summary"] += 1
                 continue
@@ -255,7 +295,9 @@ def collect(entity: str, project: str, include_smoke: bool) -> tuple[list[dict],
                 if not non_member_ds:
                     counts["dropped_no_dataset"] += 1
                     continue
-                sample_total = int(run.summary["member_num_samples"]) + int(run.summary["non_member_num_samples"])
+                sample_total = int(run.summary["member_num_samples"]) + int(
+                    run.summary["non_member_num_samples"]
+                )
                 key = (kind, model_version, member_ds, non_member_ds)
 
         else:  # codec
@@ -265,12 +307,23 @@ def collect(entity: str, project: str, include_smoke: bool) -> tuple[list[dict],
             if not _summary_has_keys(run.summary, _CODEC_REQUIRED):
                 counts["dropped_missing_summary"] += 1
                 continue
-            sample_total = int(run.summary["num_members"]) + int(run.summary["num_non_members"])
+            sample_total = int(run.summary["num_members"]) + int(
+                run.summary["num_non_members"]
+            )
             key = (kind, model_version, member_ds, non_member_ds)
 
         prev = best.get(key)
         # Pick max samples; latest created_at as tiebreaker.
-        candidate = (sample_total, run.created_at, kind, model_version, member_ds, non_member_ds, is_single_split, run)
+        candidate = (
+            sample_total,
+            run.created_at,
+            kind,
+            model_version,
+            member_ds,
+            non_member_ds,
+            is_single_split,
+            run,
+        )
         if (prev is None) or (candidate[0], candidate[1]) > (prev[0], prev[1]):
             best[key] = candidate
             counts["kept_or_replaced"] += 1
@@ -278,11 +331,24 @@ def collect(entity: str, project: str, include_smoke: bool) -> tuple[list[dict],
     codec_rows: list[dict] = []
     mm_rows: list[dict] = []
     mia_rows: list[dict] = []
-    for (_, _, kind, model_version, member_ds, non_member_ds, is_single_split, run) in best.values():
+    for (
+        _,
+        _,
+        kind,
+        model_version,
+        member_ds,
+        non_member_ds,
+        is_single_split,
+        run,
+    ) in best.values():
         if kind == "codec":
             codec_rows.extend(_codec_rows(run, model_version, member_ds, non_member_ds))
         elif kind == "mm_detect":
-            mm_rows.extend(_mm_detect_rows(run, model_version, member_ds, non_member_ds, is_single_split))
+            mm_rows.extend(
+                _mm_detect_rows(
+                    run, model_version, member_ds, non_member_ds, is_single_split
+                )
+            )
         else:
             mia_rows.append(_mia_row(run, kind, model_version, member_ds))
 
@@ -310,25 +376,54 @@ def main() -> None:
     p.add_argument("--entity", default="nask-di")
     p.add_argument("--project", default="audio-benchmark")
     p.add_argument("--output-dir", default="results", type=Path)
-    p.add_argument("--include-smoke", action="store_true",
-                   help="Keep runs tagged 'smoke' (default: drop them)")
+    p.add_argument(
+        "--include-smoke",
+        action="store_true",
+        help="Keep runs tagged 'smoke' (default: drop them)",
+    )
     args = p.parse_args()
 
     print(f"Fetching runs from {args.entity}/{args.project} ...", file=sys.stderr)
-    codec_rows, mm_rows, mia_rows, counts = collect(args.entity, args.project, args.include_smoke)
+    codec_rows, mm_rows, mia_rows, counts = collect(
+        args.entity, args.project, args.include_smoke
+    )
 
     codec_cols = [
-        "model_version", "dataset", "is_member", "contamination_score",
-        "member_normalized_score", "non_member_normalized_score",
-        "num_samples", "run_id", "run_url", "created_at",
+        "model_version",
+        "dataset",
+        "is_member",
+        "contamination_score",
+        "member_normalized_score",
+        "non_member_normalized_score",
+        "num_samples",
+        "run_id",
+        "run_url",
+        "created_at",
     ]
     mm_cols = [
-        "model_version", "dataset", "is_member", "cr", "pcr", "delta", "phi",
-        "num_samples", "run_id", "run_url", "created_at",
+        "model_version",
+        "dataset",
+        "is_member",
+        "cr",
+        "pcr",
+        "delta",
+        "phi",
+        "num_samples",
+        "run_id",
+        "run_url",
+        "created_at",
     ]
     mia_cols = [
-        "method", "model_version", "dataset", "num_members", "num_non_members",
-        "num_samples", "roc_auc", "run_id", "run_url", "created_at",
+        "method",
+        "model_version",
+        "dataset",
+        "num_members",
+        "num_non_members",
+        "num_samples",
+        "roc_auc",
+        "run_id",
+        "run_url",
+        "created_at",
     ]
 
     codec_path = args.output_dir / "codec_results.csv"
@@ -338,15 +433,28 @@ def main() -> None:
     _write_csv(mm_path, mm_rows, mm_cols)
     _write_csv(mia_path, mia_rows, mia_cols)
 
-    print(f"\nWrote {codec_path}  ({len(codec_rows)} rows, {counts.get('final_codec_runs', 0)} unique setups)",
-          file=sys.stderr)
-    print(f"Wrote {mm_path}  ({len(mm_rows)} rows, {counts.get('final_mm_detect_runs', 0)} unique setups)",
-          file=sys.stderr)
-    print(f"Wrote {mia_path}  ({len(mia_rows)} rows, {counts.get('final_mia_runs', 0)} unique setups)",
-          file=sys.stderr)
+    print(
+        f"\nWrote {codec_path}  ({len(codec_rows)} rows, {counts.get('final_codec_runs', 0)} unique setups)",
+        file=sys.stderr,
+    )
+    print(
+        f"Wrote {mm_path}  ({len(mm_rows)} rows, {counts.get('final_mm_detect_runs', 0)} unique setups)",
+        file=sys.stderr,
+    )
+    print(
+        f"Wrote {mia_path}  ({len(mia_rows)} rows, {counts.get('final_mia_runs', 0)} unique setups)",
+        file=sys.stderr,
+    )
     print("\nCounts:", file=sys.stderr)
-    for k in ("seen", "dropped_unfinished", "dropped_smoke", "dropped_unknown_method",
-              "dropped_no_model", "dropped_no_dataset", "dropped_missing_summary"):
+    for k in (
+        "seen",
+        "dropped_unfinished",
+        "dropped_smoke",
+        "dropped_unknown_method",
+        "dropped_no_model",
+        "dropped_no_dataset",
+        "dropped_missing_summary",
+    ):
         print(f"  {k:30s} {counts.get(k, 0)}", file=sys.stderr)
 
 

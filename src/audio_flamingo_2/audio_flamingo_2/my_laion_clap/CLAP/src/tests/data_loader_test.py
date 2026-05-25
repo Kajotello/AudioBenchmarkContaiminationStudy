@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 from laion_clap import create_model
@@ -19,16 +17,18 @@ from laion_clap.utils import dataset_split
 
 
 def run_dataloader():
-    for i, batch in enumerate(tqdm(dataloader, total=data["train"].dataloader.num_samples // args.batch_size)):
+    for i, batch in enumerate(
+        tqdm(dataloader, total=data["train"].dataloader.num_samples // args.batch_size)
+    ):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = parse_args()
     # sanitize model name for filesystem / uri use, easier if we don't use / in name as a rule?
     args.amodel = args.amodel.replace("/", "-")
-    device = torch.device('cpu')
+    device = torch.device("cpu")
 
     # discover initial world args early so we can log properly
     args.distributed = False
@@ -56,15 +56,15 @@ if __name__ == '__main__':
         pretrained_audio=args.pretrained_audio,
         pretrained_text=args.pretrained_text,
         enable_fusion=args.enable_fusion,
-        fusion_type=args.fusion_type
+        fusion_type=args.fusion_type,
     )
 
     data = get_data(args, model_cfg)
 
     dataloader, sampler = data["train"].dataloader, data["train"].sampler
 
-    print('dataset size:', data["train"].dataloader.num_samples)
-    print('batch size:', args.batch_size)
-    print('num batches:', data["train"].dataloader.num_samples // args.batch_size)
+    print("dataset size:", data["train"].dataloader.num_samples)
+    print("batch size:", args.batch_size)
+    print("num batches:", data["train"].dataloader.num_samples // args.batch_size)
 
     run_dataloader()

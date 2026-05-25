@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 # NOTE: This script is currently not supported for CLAP.
@@ -40,13 +38,16 @@ def zero_shot_classifier(model, classnames, templates, args):
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
-    return [float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy()) for k in topk]
+    return [
+        float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy())
+        for k in topk
+    ]
 
 
 def run(model, classifier, dataloader, args):
-    autocast = torch.cuda.amp.autocast if args.precision == 'amp' else suppress
+    autocast = torch.cuda.amp.autocast if args.precision == "amp" else suppress
     with torch.no_grad():
-        top1, top5, n = 0., 0., 0.
+        top1, top5, n = 0.0, 0.0, 0.0
         for images, target in tqdm(dataloader, unit_scale=args.batch_size):
             images = images.to(args.device)
             target = target.to(args.device)
@@ -58,7 +59,7 @@ def run(model, classifier, dataloader, args):
                 else:
                     image_features = model.encode_image(images)
                 image_features = F.normalize(image_features, dim=-1)
-                logits = 100. * image_features @ classifier
+                logits = 100.0 * image_features @ classifier
 
             # measure accuracy
             acc1, acc5 = accuracy(logits, target, topk=(1, 5))
@@ -66,35 +67,37 @@ def run(model, classifier, dataloader, args):
             top5 += acc5
             n += images.size(0)
 
-    top1 = (top1 / n)
-    top5 = (top5 / n)
+    top1 = top1 / n
+    top5 = top5 / n
     return top1, top5
 
 
 def zero_shot_eval(model, data, epoch, args):
-    if 'imagenet-val' not in data and 'imagenet-v2' not in data:
+    if "imagenet-val" not in data and "imagenet-v2" not in data:
         return {}
     if args.zeroshot_frequency == 0:
         return {}
     if (epoch % args.zeroshot_frequency) != 0 and epoch != args.epochs:
         return {}
 
-    logging.info('Starting zero-shot imagenet.')
+    logging.info("Starting zero-shot imagenet.")
 
-    logging.info('Building zero-shot classifier')
-    classifier = zero_shot_classifier(model, imagenet_classnames, openai_imagenet_template, args)
+    logging.info("Building zero-shot classifier")
+    classifier = zero_shot_classifier(
+        model, imagenet_classnames, openai_imagenet_template, args
+    )
 
-    logging.info('Using classifier')
+    logging.info("Using classifier")
     results = {}
-    if 'imagenet-val' in data:
-        top1, top5 = run(model, classifier, data['imagenet-val'].dataloader, args)
-        results['imagenet-zeroshot-val-top1'] = top1
-        results['imagenet-zeroshot-val-top5'] = top5
-    if 'imagenet-v2' in data:
-        top1, top5 = run(model, classifier, data['imagenet-v2'].dataloader, args)
-        results['imagenetv2-zeroshot-val-top1'] = top1
-        results['imagenetv2-zeroshot-val-top5'] = top5
+    if "imagenet-val" in data:
+        top1, top5 = run(model, classifier, data["imagenet-val"].dataloader, args)
+        results["imagenet-zeroshot-val-top1"] = top1
+        results["imagenet-zeroshot-val-top5"] = top5
+    if "imagenet-v2" in data:
+        top1, top5 = run(model, classifier, data["imagenet-v2"].dataloader, args)
+        results["imagenetv2-zeroshot-val-top1"] = top1
+        results["imagenetv2-zeroshot-val-top5"] = top5
 
-    logging.info('Finished zero-shot imagenet.')
+    logging.info("Finished zero-shot imagenet.")
 
     return results

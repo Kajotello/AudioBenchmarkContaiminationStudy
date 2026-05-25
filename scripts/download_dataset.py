@@ -105,7 +105,12 @@ def extract_text_fields(sample: dict, mode: str, cols: argparse.Namespace) -> di
     if mode == "qa":
         question = str(sample[cols.question_col]).strip()
         answer = str(sample[cols.answer_col]).strip()
-        return {"question": question, "answer": answer, "text": answer, "captions": [answer]}
+        return {
+            "question": question,
+            "answer": answer,
+            "text": answer,
+            "captions": [answer],
+        }
 
     # single
     val = sample[cols.text_col]
@@ -130,16 +135,21 @@ def extract_keywords(text: str) -> list[str]:
     # Extract Nouns (NN), Adjectives (JJ), and Verbs (VB)
     return [token.text for token in doc if token.pos_ in ["NOUN", "ADJ", "VERB"]]
 
+
 def apply_independent_masking(original_text: str, back_translated_text: str):
     orig_keywords = extract_keywords(original_text)
     back_keywords = extract_keywords(back_translated_text)
 
     orig_target = random.choice(orig_keywords) if orig_keywords else None
     back_target = random.choice(back_keywords) if back_keywords else None
-    
-    masked_orig = original_text.replace(orig_target, "[MASK]", 1) if orig_target else None
-    masked_back = back_translated_text.replace(back_target, "[MASK]", 1) if back_target else None
-    
+
+    masked_orig = (
+        original_text.replace(orig_target, "[MASK]", 1) if orig_target else None
+    )
+    masked_back = (
+        back_translated_text.replace(back_target, "[MASK]", 1) if back_target else None
+    )
+
     return masked_orig, orig_target, masked_back, back_target
 
 
@@ -171,16 +181,19 @@ def add_back_translations(
     if not flat:
         return
 
-    print(f"  Back-translating {len(flat)} strings "
-          f"(cache size {translator.cache_size} before this split)...")
+    print(
+        f"  Back-translating {len(flat)} strings "
+        f"(cache size {translator.cache_size} before this split)..."
+    )
     back = translator.round_trip(flat)
 
     for rec, (start, end) in zip(records, spans):
         attach_back_translated(rec, caption_mode, back[start:end])
 
 
-def split_dir_for(output_dir: Path, dataset_id: str,
-                  config_name: str | None, split: str) -> Path:
+def split_dir_for(
+    output_dir: Path, dataset_id: str, config_name: str | None, split: str
+) -> Path:
     base = output_dir / safe_id(dataset_id)
     if config_name:
         base = base / config_name
@@ -208,8 +221,11 @@ def process_split(
     # refresh the caption/label fields in place.
     existing = {int(p.stem) for p in audio_dir.glob("*.wav")}
 
-    ds = (load_dataset(dataset_id, config_name, split=split)
-          if config_name else load_dataset(dataset_id, split=split))
+    ds = (
+        load_dataset(dataset_id, config_name, split=split)
+        if config_name
+        else load_dataset(dataset_id, split=split)
+    )
 
     # Fast path: if every WAV already exists, decode=False makes the rebuild a
     # cheap text-only pass (no audio decoding). Otherwise decode for writing.
@@ -244,7 +260,7 @@ def process_split(
 
         for rec in records:
             originals = translatable_strings(rec, caption_mode)
-            back = rec.get('back_translated_caption')
+            back = rec.get("back_translated_caption")
             if isinstance(back, str):
                 back = [back]
             elif back is None:
@@ -256,49 +272,62 @@ def process_split(
             back_targets = list()
 
             for caption, back_translated_caption in zip(originals, back):
-                masked_orig, orig_target, masked_back, back_target = apply_independent_masking(caption, back_translated_caption)
+                masked_orig, orig_target, masked_back, back_target = (
+                    apply_independent_masking(caption, back_translated_caption)
+                )
                 masked_origins.append(masked_orig)
                 masked_backs.append(masked_back)
                 origin_targets.append(orig_target)
                 back_targets.append(back_target)
 
-            rec['masked_original_captions'] = masked_origins
-            rec['masked_targets_original'] = origin_targets
+            rec["masked_original_captions"] = masked_origins
+            rec["masked_targets_original"] = origin_targets
 
-            rec['masked_back_captions'] = masked_backs
-            rec['masked_targets_back'] = back_targets
-
+            rec["masked_back_captions"] = masked_backs
+            rec["masked_targets_back"] = back_targets
 
     with jsonl_path.open("w", encoding="utf-8") as jf:
         for rec in records:
             jf.write(json.dumps(rec) + "\n")
 
     bt = " + back_translated_caption" if translator else ""
-    print(f"  [{split}] {written} new WAVs, {len(records)} records "
-          f"(mode={caption_mode}{bt}) -> {split_dir}")
+    print(
+        f"  [{split}] {written} new WAVs, {len(records)} records "
+        f"(mode={caption_mode}{bt}) -> {split_dir}"
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", default="CLAPv2/Clotho")
-    parser.add_argument("--config-name", default=None,
-                        help="HF dataset config (e.g. 'balanced' for AudioSet)")
-    parser.add_argument("--split", default="train,validation,test",
-                        help="Comma-separated splits")
+    parser.add_argument(
+        "--config-name",
+        default=None,
+        help="HF dataset config (e.g. 'balanced' for AudioSet)",
+    )
+    parser.add_argument(
+        "--split", default="train,validation,test", help="Comma-separated splits"
+    )
     parser.add_argument("--audio-col", default="audio")
-    parser.add_argument("--caption-mode", default="auto",
-                        choices=["auto", "clotho", "audiocaps", "audioset",
-                                 "single", "raw", "qa"])
+    parser.add_argument(
+        "--caption-mode",
+        default="auto",
+        choices=["auto", "clotho", "audiocaps", "audioset", "single", "raw", "qa"],
+    )
     # column names per mode
-    parser.add_argument("--text-col", default="text")            # clotho / single
-    parser.add_argument("--caption-col", default="caption")      # audiocaps
+    parser.add_argument("--text-col", default="text")  # clotho / single
+    parser.add_argument("--caption-col", default="caption")  # audiocaps
     parser.add_argument("--labels-col", default="human_labels")  # audioset
-    parser.add_argument("--raw-text-col", default="raw_text")    # raw
-    parser.add_argument("--question-col", default="question")    # qa
-    parser.add_argument("--answer-col", default="answer")        # qa
+    parser.add_argument("--raw-text-col", default="raw_text")  # raw
+    parser.add_argument("--question-col", default="question")  # qa
+    parser.add_argument("--answer-col", default="answer")  # qa
     parser.add_argument("--sample-rate", type=int, default=16000)
-    parser.add_argument("--output-dir", "-b", default="./data",
-                        help="Base output directory (default: ./data)")
+    parser.add_argument(
+        "--output-dir",
+        "-b",
+        default="./data",
+        help="Base output directory (default: ./data)",
+    )
     parser.add_argument(
         "--back-translate",
         action=argparse.BooleanOptionalAction,
@@ -311,8 +340,9 @@ def main() -> None:
         help="HuggingFace model id for back-translation",
     )
     parser.add_argument("--translate-batch-size", type=int, default=32)
-    parser.add_argument("--translate-device", default="auto",
-                        choices=["auto", "cuda", "cpu"])
+    parser.add_argument(
+        "--translate-device", default="auto", choices=["auto", "cuda", "cpu"]
+    )
     parser.add_argument("--translate-num-beams", type=int, default=1)
     args = parser.parse_args()
 
@@ -332,8 +362,10 @@ def main() -> None:
             num_beams=args.translate_num_beams,
         )
 
-    print(f"Dataset      : {args.dataset_id}"
-          + (f" ({args.config_name})" if args.config_name else ""))
+    print(
+        f"Dataset      : {args.dataset_id}"
+        + (f" ({args.config_name})" if args.config_name else "")
+    )
     print(f"Splits       : {splits}")
     print(f"Caption mode : {caption_mode}")
     print(f"Back-translate: {args.back_translate}")

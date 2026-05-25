@@ -71,7 +71,11 @@ class JsonlMMDetectDataset(BaseMMDetectDataset):
                 "scripts/download_dataset.py --back-translate."
             )
 
-        if require_num_captions is not None and raw_records and "captions" not in raw_records[0]:
+        if (
+            require_num_captions is not None
+            and raw_records
+            and "captions" not in raw_records[0]
+        ):
             raise RuntimeError(
                 f"{self.jsonl_path} has no 'captions' field but "
                 f"require_num_captions={require_num_captions} was requested."

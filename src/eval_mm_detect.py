@@ -3,6 +3,7 @@
 Collects samples from ``JsonlMMDetectDataset`` and delegates whole-split scoring to
 ``MMDetectMethod.run_on_dataset`` (CR, PCR, delta only — no per-sample outputs).
 """
+
 from __future__ import annotations
 
 import random
@@ -17,7 +18,13 @@ from omegaconf import DictConfig
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from src.methods.mm_detect import MMDetectMethod
-from src.utils import RankedLogger, extras, init_wandb_run, log_wandb_metrics, task_wrapper
+from src.utils import (
+    RankedLogger,
+    extras,
+    init_wandb_run,
+    log_wandb_metrics,
+    task_wrapper,
+)
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -120,23 +127,29 @@ def evaluate_mm_detect(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]
         "prompt_template": method.prompt_template,
     }
     if member_split is not None:
-        metric_dict.update({
-            "member_num_samples": int(member_split["num_samples"]),
-            "member_cr": member_split["cr"],
-            "member_pcr": member_split["pcr"],
-            "member_delta": member_split["delta"],
-            "member_phi": member_split["phi"],
-        })
+        metric_dict.update(
+            {
+                "member_num_samples": int(member_split["num_samples"]),
+                "member_cr": member_split["cr"],
+                "member_pcr": member_split["pcr"],
+                "member_delta": member_split["delta"],
+                "member_phi": member_split["phi"],
+            }
+        )
     if non_member_split is not None:
-        metric_dict.update({
-            "non_member_num_samples": int(non_member_split["num_samples"]),
-            "non_member_cr": non_member_split["cr"],
-            "non_member_pcr": non_member_split["pcr"],
-            "non_member_delta": non_member_split["delta"],
-            "non_member_phi": non_member_split["phi"],
-        })
+        metric_dict.update(
+            {
+                "non_member_num_samples": int(non_member_split["num_samples"]),
+                "non_member_cr": non_member_split["cr"],
+                "non_member_pcr": non_member_split["pcr"],
+                "non_member_delta": non_member_split["delta"],
+                "non_member_phi": non_member_split["phi"],
+            }
+        )
     if member_split is not None and non_member_split is not None:
-        metric_dict["delta_gap"] = float(member_split["delta"] - non_member_split["delta"])
+        metric_dict["delta_gap"] = float(
+            member_split["delta"] - non_member_split["delta"]
+        )
 
     output_dir = Path(cfg.paths.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -154,7 +167,9 @@ def evaluate_mm_detect(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]
     return metric_dict, object_dict
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="eval_mm_detect.yaml")
+@hydra.main(
+    version_base="1.3", config_path="../configs", config_name="eval_mm_detect.yaml"
+)
 def main(cfg: DictConfig) -> None:
     extras(cfg)
     evaluate_mm_detect(cfg)

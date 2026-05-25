@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import logging
@@ -14,11 +12,16 @@ import logging
 def setup_logging(log_file, level, include_host=False):
     if include_host:
         import socket
+
         hostname = socket.gethostname()
         formatter = logging.Formatter(
-            f'%(asctime)s |  {hostname} | %(levelname)s | %(message)s', datefmt='%Y-%m-%d,%H:%M:%S')
+            f"%(asctime)s |  {hostname} | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d,%H:%M:%S",
+        )
     else:
-        formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', datefmt='%Y-%m-%d,%H:%M:%S')
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(message)s", datefmt="%Y-%m-%d,%H:%M:%S"
+        )
 
     logging.root.setLevel(level)
     loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
@@ -33,4 +36,3 @@ def setup_logging(log_file, level, include_host=False):
         file_handler = logging.FileHandler(filename=log_file)
         file_handler.setFormatter(formatter)
         logging.root.addHandler(file_handler)
-

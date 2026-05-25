@@ -18,6 +18,7 @@ Paper's raw score (higher = more likely member):
 
 We negate.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -36,8 +37,8 @@ class MinKPlusPlusMethod(MethodBaseClass):
 
     def _score_from_dict(self, sd: dict[str, Any]) -> float:
         log_probs: torch.Tensor = sd["token_log_probs"]
-        mu:        torch.Tensor = sd["token_log_prob_mean"]
-        sigma:     torch.Tensor = sd["token_log_prob_std"]
+        mu: torch.Tensor = sd["token_log_prob_mean"]
+        sigma: torch.Tensor = sd["token_log_prob_std"]
 
         z = (log_probs - mu) / sigma.clamp_min(1e-8)
         n = z.numel()

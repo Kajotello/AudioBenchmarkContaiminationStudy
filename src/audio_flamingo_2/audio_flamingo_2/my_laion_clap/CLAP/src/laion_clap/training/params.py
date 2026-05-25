@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import argparse
@@ -495,8 +493,10 @@ def parse_args():
         "--lp-lr", type=float, default=1e-4, help="learning rate of linear probe"
     )
     parser.add_argument(
-        "--kappa", type=float, default=0,
-        help="the kappa in the weighted contrastive loss, default is to turn off the weighted contrastive loss"
+        "--kappa",
+        type=float,
+        default=0,
+        help="the kappa in the weighted contrastive loss, default is to turn off the weighted contrastive loss",
     )
 
     parser.add_argument(
@@ -504,14 +504,14 @@ def parse_args():
         type=str,
         default="pad",
         help="type of data filling when the audio length is shorter than the max length."
-             "Can be one of the following: repeat, repeatpad, pad",
+        "Can be one of the following: repeat, repeatpad, pad",
     )
     parser.add_argument(
         "--data-truncating",
         type=str,
         default="rand_trunc",
         help="type of data truncation when the audio length is longer than the max length."
-             "Can be one of the following: rand_trunc, fusion",
+        "Can be one of the following: rand_trunc, fusion",
     )
 
     parser.add_argument(
@@ -543,7 +543,7 @@ def parse_args():
     parser.add_argument(
         "--fusion-type",
         type=str,
-        default='None',
+        default="None",
         help="Type is among ['channel_map', 'daf_1d','aff_1d','iaff_1d','daf_2d','aff_2d','iaff_2d']",
     )
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
@@ -33,7 +33,7 @@ class SysLogger(object):
         self.log = open(filename, "a")
 
     def write(self, message):
-        self.terminal.write(message+'\n')
+        self.terminal.write(message + "\n")
         self.log.write(message)
 
 
@@ -67,20 +67,16 @@ def get_autocast(precision, cache_enabled=True):
 
 
 def train_one_epoch(
-    args,
-    model,
-    epoch,
-    trainloader,
-    tokenizer,
-    optimizer,
-    lr_scheduler,
-    device_id,
-    tb
+    args, model, epoch, trainloader, tokenizer, optimizer, lr_scheduler, device_id, tb
 ):
     # setup loaders
     num_batches_per_epoch = len(trainloader)
     total_training_steps = num_batches_per_epoch * args.num_epochs
-    print('num_batches_per_epoch={}, total_training_steps={}'.format(num_batches_per_epoch, total_training_steps))
+    print(
+        "num_batches_per_epoch={}, total_training_steps={}".format(
+            num_batches_per_epoch, total_training_steps
+        )
+    )
 
     autocast = get_autocast(
         args.precision, cache_enabled=(not args.fsdp)
@@ -90,7 +86,9 @@ def train_one_epoch(
     # setup model
     media_token_id = tokenizer("<audio>", add_special_tokens=False)["input_ids"][-1]
     assert media_token_id == tokenizer.encode("<audio>")[-1]
-    endofchunk_token_id = tokenizer("<|endofchunk|>", add_special_tokens=False)["input_ids"][-1]
+    endofchunk_token_id = tokenizer("<|endofchunk|>", add_special_tokens=False)[
+        "input_ids"
+    ][-1]
     model.train()
 
     # setup logging
@@ -103,18 +101,26 @@ def train_one_epoch(
         enumerate(trainloader),
         disable=args.rank != 0,
         total=total_training_steps,
-        initial=(epoch * num_batches_per_epoch)
+        initial=(epoch * num_batches_per_epoch),
     ):
 
         data_time_m.update(time.time() - end)
         global_step = num_steps + epoch * num_batches_per_epoch
 
         #### FORWARD PASS ####
-        audio_clips = batch["audio_clips"].to(device_id, dtype=cast_dtype, non_blocking=True)  # (B, N_WINDOWS, WINDOW_LENGTH)
-        audio_embed_mask = batch["audio_embed_mask"].to(device_id, dtype=cast_dtype, non_blocking=True)  # (B, N_WINDOWS)
+        audio_clips = batch["audio_clips"].to(
+            device_id, dtype=cast_dtype, non_blocking=True
+        )  # (B, N_WINDOWS, WINDOW_LENGTH)
+        audio_embed_mask = batch["audio_embed_mask"].to(
+            device_id, dtype=cast_dtype, non_blocking=True
+        )  # (B, N_WINDOWS)
 
-        input_ids = batch["input_ids"].to(device_id, dtype=torch.long, non_blocking=True)  # (B, N_TOKENS)
-        attention_mask = batch["attention_mask"].to(device_id, dtype=cast_dtype, non_blocking=True)  # (B, N_TOKENS)
+        input_ids = batch["input_ids"].to(
+            device_id, dtype=torch.long, non_blocking=True
+        )  # (B, N_TOKENS)
+        attention_mask = batch["attention_mask"].to(
+            device_id, dtype=cast_dtype, non_blocking=True
+        )  # (B, N_TOKENS)
 
         # set up labels; language model is expected to handle shifting
         labels = input_ids.clone()
@@ -127,7 +133,11 @@ def train_one_epoch(
         eoc_locations = labels == endofchunk_token_id
 
         if not all(sep_locations.sum(dim=1) == eoc_locations.sum(dim=1)):
-            print("Warning: <SEP>-<EoC> pairing mismatch at step {} due to max_token limit.".format(num_steps))
+            print(
+                "Warning: <SEP>-<EoC> pairing mismatch at step {} due to max_token limit.".format(
+                    num_steps
+                )
+            )
 
         for i in range(labels.shape[0]):
             shouldmask = True
@@ -141,12 +151,21 @@ def train_one_epoch(
                     shouldmask = False
                 elif labels[i][j] == endofchunk_token_id:
                     shouldmask = True
-                
+
                 labels[i][j] = masked_value
-            
-            if labels[i][-1] not in [-100, tokenizer.eos_token_id, tokenizer.pad_token_id, endofchunk_token_id]:
-                for j in range(labels.shape[1]-1, -1, -1):
-                    if labels[i][j] not in [-100, tokenizer.eos_token_id, endofchunk_token_id]:
+
+            if labels[i][-1] not in [
+                -100,
+                tokenizer.eos_token_id,
+                tokenizer.pad_token_id,
+                endofchunk_token_id,
+            ]:
+                for j in range(labels.shape[1] - 1, -1, -1):
+                    if labels[i][j] not in [
+                        -100,
+                        tokenizer.eos_token_id,
+                        endofchunk_token_id,
+                    ]:
                         labels[i][j] = -100
                     else:
                         break
@@ -160,7 +179,7 @@ def train_one_epoch(
                 audio_x_mask=audio_embed_mask,
                 lang_x=input_ids,
                 attention_mask=attention_mask,
-                labels=labels
+                labels=labels,
             )
             loss = output.loss
 
@@ -225,9 +244,7 @@ def train_one_epoch(
                     / step_time_m.val
                 )
                 samples_per_second_per_gpu = (
-                    args.gradient_accumulation_steps
-                    * args.batch_size
-                    / step_time_m.val
+                    args.gradient_accumulation_steps * args.batch_size / step_time_m.val
                 )
                 log_dict = {
                     "data_time": data_time_m.avg,
@@ -235,18 +252,20 @@ def train_one_epoch(
                     "samples_per_second": samples_per_second,
                     "samples_per_second_per_gpu": samples_per_second_per_gpu,
                     "lr": optimizer.param_groups[0]["lr"],
-                    "loss": loss.item()
+                    "loss": loss.item(),
                 }
 
-                if ((num_steps + 1) % args.logging_steps == 0):
+                if (num_steps + 1) % args.logging_steps == 0:
                     for key in log_dict:
-                        tb.add_scalar("Train/{}".format(key), log_dict[key], global_step)
+                        tb.add_scalar(
+                            "Train/{}".format(key), log_dict[key], global_step
+                        )
 
                 step_time_m.reset()
                 data_time_m.reset()
 
         # Log loss to console
-        if ((num_steps + 1) % args.logging_steps == 0):
+        if (num_steps + 1) % args.logging_steps == 0:
             print(
                 f"Step {num_steps+1}/{num_batches_per_epoch} of epoch {epoch+1}/{args.num_epochs} complete. Loss: {loss.item():.3f}\n"
             )
@@ -345,5 +364,5 @@ def save_checkpoint(model, optimizer, lr_scheduler, epoch, args):
         torch.save(checkpoint_dict, f"{checkpoint_dir}/checkpoint_{epoch}.pt")
 
         if args.delete_previous_checkpoint:
-            if epoch > 0 and (epoch-1) % 5 != 0:
+            if epoch > 0 and (epoch - 1) % 5 != 0:
                 os.remove(f"{checkpoint_dir}/checkpoint_{epoch-1}.pt")

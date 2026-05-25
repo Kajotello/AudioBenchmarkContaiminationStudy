@@ -16,6 +16,7 @@ Per the project convention (LOWER score => MORE LIKELY MEMBER), we return:
 A *negative* score means the model was much more confident on the original
 format, indicating likely dataset membership.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -30,10 +31,11 @@ class MMDetectMethod:
 
     Evaluation goes through ``run_on_dataset`` with slot-guessing via ``generate``.
     """
+
     def __init__(self, prompt_template: str | None = None) -> None:
         """
         Args:
-            prompt_template: An optional string to wrap the masked text. 
+            prompt_template: An optional string to wrap the masked text.
                              e.g., "Fill in the [MASK] of the following sentence in one word: {caption}"
         """
         self.prompt_template = prompt_template or "{caption}"
@@ -56,17 +58,22 @@ class MMDetectMethod:
 
         # Pass 1: Score the original target word given the original masked context
         pred_orig = model.generate(
-            audio=audio, prompt=prompt_orig,
+            audio=audio,
+            prompt=prompt_orig,
         )
-        is_orig_correct = (pred_orig.lower().strip().strip(',').strip('.') == orig_target.lower().strip().strip(',').strip('.'))
-        
+        is_orig_correct = pred_orig.lower().strip().strip(",").strip(
+            "."
+        ) == orig_target.lower().strip().strip(",").strip(".")
+
         # Pass 2: Score the perturbed target word given the back-translated masked context
         pred_back = model.generate(
-            audio=audio, prompt=prompt_back,
+            audio=audio,
+            prompt=prompt_back,
         )
-        is_back_correct = (pred_back.lower().strip().strip(',').strip('.') == back_target.lower().strip().strip(',').strip('.'))
+        is_back_correct = pred_back.lower().strip().strip(",").strip(
+            "."
+        ) == back_target.lower().strip().strip(",").strip(".")
         return is_orig_correct, is_back_correct
-
 
     def run_on_dataset(
         self,

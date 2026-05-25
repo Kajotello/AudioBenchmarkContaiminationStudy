@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
@@ -433,9 +433,9 @@ class CLAP(nn.Module):
         text_cfg: CLAPTextCfg,
         quick_gelu: bool = False,
         enable_fusion: bool = False,
-        fusion_type: str = 'None',
+        fusion_type: str = "None",
         joint_embed_shape: int = 512,
-        mlp_act: str = 'relu',
+        mlp_act: str = "relu",
     ):
         super().__init__()
         if isinstance(audio_cfg, dict):
@@ -450,7 +450,6 @@ class CLAP(nn.Module):
         self.joint_embed_shape = joint_embed_shape
         self.mlp_act = mlp_act
 
-
         self.context_length = text_cfg.context_length
 
         # OpenAI models are pretrained w/ QuickGELU but native nn.GELU is both faster and more
@@ -458,9 +457,9 @@ class CLAP(nn.Module):
         # NOTE: timm models always use native GELU regardless of quick_gelu flag.
         act_layer = QuickGELU if quick_gelu else nn.GELU
 
-        if mlp_act == 'relu':
+        if mlp_act == "relu":
             mlp_act_layer = nn.ReLU()
-        elif mlp_act == 'gelu':
+        elif mlp_act == "gelu":
             mlp_act_layer = nn.GELU()
         else:
             raise NotImplementedError
@@ -470,7 +469,9 @@ class CLAP(nn.Module):
         if audio_cfg.model_type == "PANN":
             self.audio_branch = create_pann_model(audio_cfg, enable_fusion, fusion_type)
         elif audio_cfg.model_type == "HTSAT":
-            self.audio_branch = create_htsat_model(audio_cfg, enable_fusion, fusion_type)
+            self.audio_branch = create_htsat_model(
+                audio_cfg, enable_fusion, fusion_type
+            )
         else:
             logging.error(f"Model config for {audio_cfg.model_type} not found")
             raise RuntimeError(f"Model config for {audio_cfg.model_type} not found.")
@@ -490,43 +491,63 @@ class CLAP(nn.Module):
                 torch.empty(self.context_length, text_cfg.width)
             )
             self.ln_final = LayerNorm(text_cfg.width)
-            self.text_transform = MLPLayers(units=[self.joint_embed_shape,
-                                                   self.joint_embed_shape,
-                                                   self.joint_embed_shape], dropout=0.1)
+            self.text_transform = MLPLayers(
+                units=[
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                ],
+                dropout=0.1,
+            )
             self.text_projection = nn.Sequential(
                 nn.Linear(text_cfg.width, self.joint_embed_shape),
                 mlp_act_layer,
-                nn.Linear(self.joint_embed_shape, self.joint_embed_shape)
+                nn.Linear(self.joint_embed_shape, self.joint_embed_shape),
             )
         elif text_cfg.model_type == "bert":
             self.text_branch = BertModel.from_pretrained("bert-base-uncased")
-            self.text_transform = MLPLayers(units=[self.joint_embed_shape,
-                                                   self.joint_embed_shape,
-                                                   self.joint_embed_shape], dropout=0.1)
+            self.text_transform = MLPLayers(
+                units=[
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                ],
+                dropout=0.1,
+            )
             self.text_projection = nn.Sequential(
                 nn.Linear(768, self.joint_embed_shape),
                 mlp_act_layer,
-                nn.Linear(self.joint_embed_shape, self.joint_embed_shape)
+                nn.Linear(self.joint_embed_shape, self.joint_embed_shape),
             )
         elif text_cfg.model_type == "roberta":
-            self.text_branch = RobertaModel.from_pretrained('roberta-base')
-            self.text_transform = MLPLayers(units=[self.joint_embed_shape,
-                                                   self.joint_embed_shape,
-                                                   self.joint_embed_shape], dropout=0.1)
+            self.text_branch = RobertaModel.from_pretrained("roberta-base")
+            self.text_transform = MLPLayers(
+                units=[
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                ],
+                dropout=0.1,
+            )
             self.text_projection = nn.Sequential(
                 nn.Linear(768, self.joint_embed_shape),
                 mlp_act_layer,
-                nn.Linear(self.joint_embed_shape, self.joint_embed_shape)
+                nn.Linear(self.joint_embed_shape, self.joint_embed_shape),
             )
         elif text_cfg.model_type == "bart":
-            self.text_branch = BartModel.from_pretrained('facebook/bart-base')
-            self.text_transform = MLPLayers(units=[self.joint_embed_shape,
-                                                   self.joint_embed_shape,
-                                                   self.joint_embed_shape], dropout=0.1)
+            self.text_branch = BartModel.from_pretrained("facebook/bart-base")
+            self.text_transform = MLPLayers(
+                units=[
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                    self.joint_embed_shape,
+                ],
+                dropout=0.1,
+            )
             self.text_projection = nn.Sequential(
                 nn.Linear(768, self.joint_embed_shape),
                 mlp_act_layer,
-                nn.Linear(self.joint_embed_shape, self.joint_embed_shape)
+                nn.Linear(self.joint_embed_shape, self.joint_embed_shape),
             )
         else:
             logging.error(f"Model config for {text_cfg.model_type} not found")
@@ -535,18 +556,23 @@ class CLAP(nn.Module):
         # text branch parameters
 
         # audio branch parameters
-        self.audio_transform = MLPLayers(units=[self.joint_embed_shape,
-                                                self.joint_embed_shape,
-                                                self.joint_embed_shape], dropout=0.1)
+        self.audio_transform = MLPLayers(
+            units=[
+                self.joint_embed_shape,
+                self.joint_embed_shape,
+                self.joint_embed_shape,
+            ],
+            dropout=0.1,
+        )
 
         # below here is text branch parameters
 
         # ============================================================================================================
         self.audio_projection = nn.Sequential(
-                nn.Linear(embed_dim, self.joint_embed_shape),
-                mlp_act_layer,
-                nn.Linear(self.joint_embed_shape, self.joint_embed_shape)
-            )
+            nn.Linear(embed_dim, self.joint_embed_shape),
+            mlp_act_layer,
+            nn.Linear(self.joint_embed_shape, self.joint_embed_shape),
+        )
 
         self.logit_scale_a = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.logit_scale_t = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -593,7 +619,9 @@ class CLAP(nn.Module):
         return mask
 
     def encode_audio(self, audio, device):
-        return self.audio_branch(audio, mixup_lambda=None, device=device)  # mix lambda needs to add
+        return self.audio_branch(
+            audio, mixup_lambda=None, device=device
+        )  # mix lambda needs to add
 
     # def list_of_dict_of_tensor2dict_of_tensor(self, x, device):
     #     tmp = {}
@@ -641,12 +669,15 @@ class CLAP(nn.Module):
             )["pooler_output"]
             x = self.text_projection(x)
         elif self.text_branch_type == "bart":
-            x = torch.mean(self.text_branch(
-                input_ids=text["input_ids"].to(device=device, non_blocking=True),
-                attention_mask=text["attention_mask"].to(
-                    device=device, non_blocking=True
-                ),
-            )["encoder_last_hidden_state"],axis=1)
+            x = torch.mean(
+                self.text_branch(
+                    input_ids=text["input_ids"].to(device=device, non_blocking=True),
+                    attention_mask=text["attention_mask"].to(
+                        device=device, non_blocking=True
+                    ),
+                )["encoder_last_hidden_state"],
+                axis=1,
+            )
             x = self.text_projection(x)
         else:
             logging.error(f"Model type {self.text_branch_type} not found")
@@ -674,13 +705,15 @@ class CLAP(nn.Module):
         elif audio is None:
             return self.encode_text(text, device=device)
         elif text is None:
-            return self.audio_projection(self.encode_audio(audio, device=device)["embedding"])
-        audio_features = self.audio_projection(self.encode_audio(audio, device=device)["embedding"])
+            return self.audio_projection(
+                self.encode_audio(audio, device=device)["embedding"]
+            )
+        audio_features = self.audio_projection(
+            self.encode_audio(audio, device=device)["embedding"]
+        )
         audio_features = F.normalize(audio_features, dim=-1)
 
-        text_features = self.encode_text(
-            text, device=device
-        )
+        text_features = self.encode_text(text, device=device)
         # print("text_features", text_features)
         # print("text_features.shape", text_features.shape)
         # print("text_features.type", type(text_features))
@@ -706,7 +739,7 @@ class CLAP(nn.Module):
 
         Parameters
         ----------
-        data: torch.Tensor 
+        data: torch.Tensor
             a tensor of text embedding
 
         Returns
@@ -720,7 +753,7 @@ class CLAP(nn.Module):
             data[k] = data[k].to(device)
         text_embeds = self.encode_text(data, device=device)
         text_embeds = F.normalize(text_embeds, dim=-1)
-        
+
         return text_embeds
 
     def get_audio_embedding(self, data):
@@ -741,13 +774,13 @@ class CLAP(nn.Module):
         input_dict = {}
         keys = data[0].keys()
         for k in keys:
-            input_dict[k] = torch.cat([d[k].unsqueeze(0) for d in data], dim=0).to(device)
+            input_dict[k] = torch.cat([d[k].unsqueeze(0) for d in data], dim=0).to(
+                device
+            )
         audio_embeds = self.encode_audio(input_dict, device=device)["embedding"]
         audio_embeds = self.audio_projection(audio_embeds)
         audio_embeds = F.normalize(audio_embeds, dim=-1)
         return audio_embeds
-
-            
 
     def audio_infer(self, audio, hopsize=None, device=None):
         """Forward one audio and produce the audio embedding
@@ -775,7 +808,9 @@ class CLAP(nn.Module):
         # PANN
         if self.audio_cfg.model_type == "PANN":
             audio_input = audio.unsqueeze(dim=0)
-            output_dict[key] = self.encode_audio(audio_input, device=device)[key].squeeze(dim=0)
+            output_dict[key] = self.encode_audio(audio_input, device=device)[
+                key
+            ].squeeze(dim=0)
         elif self.audio_cfg.model_type == "HTSAT":
             # repeat
             audio_len = len(audio)
@@ -799,7 +834,9 @@ class CLAP(nn.Module):
                 output_dict[key] = self.encode_audio(audio_input, device=device)[key]
             else:
                 audio_input = audio.unsqueeze(dim=0)
-                output_dict[key] = self.encode_audio(audio_input, device=device)[key].squeeze(dim=0)
+                output_dict[key] = self.encode_audio(audio_input, device=device)[
+                    key
+                ].squeeze(dim=0)
 
         return output_dict
 
@@ -834,7 +871,9 @@ def convert_weights_to_fp16(model: nn.Module):
 
 
 # Ignore the state dict of the vision part
-def build_model_from_openai_state_dict(state_dict: dict, model_cfg, enable_fusion: bool = False, fusion_type: str = 'None'):
+def build_model_from_openai_state_dict(
+    state_dict: dict, model_cfg, enable_fusion: bool = False, fusion_type: str = "None"
+):
 
     embed_dim = model_cfg["embed_dim"]
     audio_cfg = model_cfg["audio_cfg"]
@@ -860,7 +899,7 @@ def build_model_from_openai_state_dict(state_dict: dict, model_cfg, enable_fusio
         text_cfg=text_cfg,
         quick_gelu=True,  # OpenAI models were trained with QuickGELU
         enable_fusion=enable_fusion,
-        fusion_type=fusion_type
+        fusion_type=fusion_type,
     )
     state_dict["logit_scale_a"] = state_dict["logit_scale"]
     state_dict["logit_scale_t"] = state_dict["logit_scale"]

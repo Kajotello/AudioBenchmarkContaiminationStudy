@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import numpy as np
@@ -66,7 +64,7 @@ dataset_split = {
     "juno_16bit": ["train", "test"],
     "fma_full_16bit_128": ["train", "test"],
     "GTZAN": ["train", "test"],
-    }
+}
 
 
 def freeze_batch_norm_2d(module, module_match={}, name=""):
@@ -90,7 +88,7 @@ def freeze_batch_norm_2d(module, module_match={}, name=""):
     if module_match:
         is_match = name in module_match
     if is_match and isinstance(
-            module, (nn.modules.batchnorm.BatchNorm2d, nn.modules.batchnorm.SyncBatchNorm)
+        module, (nn.modules.batchnorm.BatchNorm2d, nn.modules.batchnorm.SyncBatchNorm)
     ):
         res = FrozenBatchNorm2d(module.num_features)
         res.num_features = module.num_features
@@ -121,12 +119,7 @@ def exist(dataset_name, dataset_type):
 
 
 def get_tar_path_from_dataset_name(
-        dataset_names,
-        dataset_types,
-        islocal,
-        dataset_path,
-        proportion=1,
-        full_dataset=None
+    dataset_names, dataset_types, islocal, dataset_path, proportion=1, full_dataset=None
 ):
     """
     Get tar path from dataset name and type
@@ -212,8 +205,8 @@ def do_mixup(x, mixup_lambda):
       out: (batch_size, ...)
     """
     out = (
-            x.transpose(0, -1) * mixup_lambda
-            + torch.flip(x, dims=[0]).transpose(0, -1) * (1 - mixup_lambda)
+        x.transpose(0, -1) * mixup_lambda
+        + torch.flip(x, dims=[0]).transpose(0, -1) * (1 - mixup_lambda)
     ).transpose(0, -1)
     return out
 
@@ -323,7 +316,7 @@ def save_p(obj, filename):
     with open(filename, "rb") as file:
         z = pickle.load(file)
     assert (
-            DeepDiff(obj, z, ignore_string_case=True) == {}
+        DeepDiff(obj, z, ignore_string_case=True) == {}
     ), "there is something wrong with the saving process"
     return
 
@@ -338,14 +331,16 @@ def load_p(filename):
 
 def save_json(data, name="data.json"):
     import json
-    with open(name, 'w') as fp:
+
+    with open(name, "w") as fp:
         json.dump(data, fp)
     return
 
 
 def load_json(name):
     import json
-    with open(name, 'r') as fp:
+
+    with open(name, "r") as fp:
         data = json.load(fp)
     return data
 
@@ -368,6 +363,7 @@ def load_class_label(path):
             out = np.load(path)
         elif pathlib.Path(path).suffix in [".csv"]:
             import pandas as pd
+
             out = pd.read_csv(path)
     return out
     # if out is None:
@@ -383,17 +379,11 @@ from torch import optim
 
 def get_optimizer(params, lr, betas, eps, momentum, optimizer_name):
     if optimizer_name.lower() == "adamw":
-        optimizer = optim.AdamW(
-            params, lr=lr, betas=betas, eps=eps
-        )
+        optimizer = optim.AdamW(params, lr=lr, betas=betas, eps=eps)
     elif optimizer_name.lower() == "sgd":
-        optimizer = optim.SGD(
-            params, lr=lr, momentum=momentum
-        )
+        optimizer = optim.SGD(params, lr=lr, momentum=momentum)
     elif optimizer_name.lower() == "adam":
-        optimizer = optim.Adam(
-            params, lr=lr, betas=betas, eps=eps
-        )
+        optimizer = optim.Adam(params, lr=lr, betas=betas, eps=eps)
     else:
         raise ValueError("optimizer name is not correct")
     return optimizer

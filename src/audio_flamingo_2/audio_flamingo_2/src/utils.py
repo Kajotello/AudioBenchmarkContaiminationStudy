@@ -1,8 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/mlfoundations/open_flamingo under the MIT license.
 #   LICENSE is in incl_licenses directory.
+
 
 def extend_instance(obj, mixin):
     """Apply mixins to a class instance after creation"""

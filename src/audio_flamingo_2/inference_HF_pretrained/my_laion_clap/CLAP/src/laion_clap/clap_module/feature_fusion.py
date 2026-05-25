@@ -1,23 +1,23 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
 
-'''
+"""
 Feature Fusion for Varible-Length Data Processing
 AFF/iAFF is referred and modified from https://github.com/YimianDai/open-aff/blob/master/aff_pytorch/aff_net/fusion.py
 According to the paper: Yimian Dai et al, Attentional Feature Fusion, IEEE Winter Conference on Applications of Computer Vision, WACV 2021
-'''
+"""
 
 import torch
 import torch.nn as nn
 
 
 class DAF(nn.Module):
-    '''
+    """
     直接相加 DirectAddFuse
-    '''
+    """
 
     def __init__(self):
         super(DAF, self).__init__()
@@ -27,15 +27,15 @@ class DAF(nn.Module):
 
 
 class iAFF(nn.Module):
-    '''
+    """
     多特征融合 iAFF
-    '''
+    """
 
-    def __init__(self, channels=64, r=4, type='2D'):
+    def __init__(self, channels=64, r=4, type="2D"):
         super(iAFF, self).__init__()
         inter_channels = int(channels // r)
 
-        if type == '1D':
+        if type == "1D":
             # 本地注意力
             self.local_att = nn.Sequential(
                 nn.Conv1d(channels, inter_channels, kernel_size=1, stride=1, padding=0),
@@ -72,7 +72,7 @@ class iAFF(nn.Module):
                 nn.Conv1d(inter_channels, channels, kernel_size=1, stride=1, padding=0),
                 nn.BatchNorm1d(channels),
             )
-        elif type == '2D':
+        elif type == "2D":
             # 本地注意力
             self.local_att = nn.Sequential(
                 nn.Conv2d(channels, inter_channels, kernel_size=1, stride=1, padding=0),
@@ -110,7 +110,7 @@ class iAFF(nn.Module):
                 nn.BatchNorm2d(channels),
             )
         else:
-            raise f'the type is not supported'
+            raise f"the type is not supported"
 
         self.sigmoid = nn.Sigmoid()
 
@@ -118,7 +118,7 @@ class iAFF(nn.Module):
         flag = False
         xa = x + residual
         if xa.size(0) == 1:
-            xa = torch.cat([xa,xa],dim=0)
+            xa = torch.cat([xa, xa], dim=0)
             flag = True
         xl = self.local_att(xa)
         xg = self.global_att(xa)
@@ -137,15 +137,15 @@ class iAFF(nn.Module):
 
 
 class AFF(nn.Module):
-    '''
+    """
     多特征融合 AFF
-    '''
+    """
 
-    def __init__(self, channels=64, r=4, type='2D'):
+    def __init__(self, channels=64, r=4, type="2D"):
         super(AFF, self).__init__()
         inter_channels = int(channels // r)
 
-        if type == '1D':
+        if type == "1D":
             self.local_att = nn.Sequential(
                 nn.Conv1d(channels, inter_channels, kernel_size=1, stride=1, padding=0),
                 nn.BatchNorm1d(inter_channels),
@@ -161,7 +161,7 @@ class AFF(nn.Module):
                 nn.Conv1d(inter_channels, channels, kernel_size=1, stride=1, padding=0),
                 nn.BatchNorm1d(channels),
             )
-        elif type == '2D':
+        elif type == "2D":
             self.local_att = nn.Sequential(
                 nn.Conv2d(channels, inter_channels, kernel_size=1, stride=1, padding=0),
                 nn.BatchNorm2d(inter_channels),
@@ -178,15 +178,15 @@ class AFF(nn.Module):
                 nn.BatchNorm2d(channels),
             )
         else:
-            raise f'the type is not supported.'
-        
+            raise f"the type is not supported."
+
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x, residual):
         flag = False
         xa = x + residual
         if xa.size(0) == 1:
-            xa = torch.cat([xa,xa],dim=0)
+            xa = torch.cat([xa, xa], dim=0)
             flag = True
         xl = self.local_att(xa)
         xg = self.global_att(xa)
@@ -196,4 +196,3 @@ class AFF(nn.Module):
         if flag:
             xo = xo[0].unsqueeze(0)
         return xo
-

@@ -1,11 +1,9 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
-
 
 
 # Adapted from https://github.com/LAION-AI/CLAP under the CC0-1.0 license.
 #   LICENSE is in incl_licenses directory.
-
 
 
 import json
@@ -57,7 +55,15 @@ def unwrap_model(model):
 
 
 def train_one_epoch(
-        model, data, epoch, optimizer, scaler, scheduler, args, tb_writer=None, extra_suffix=""
+    model,
+    data,
+    epoch,
+    optimizer,
+    scaler,
+    scheduler,
+    args,
+    tb_writer=None,
+    extra_suffix="",
 ):
     device = torch.device(args.device)
     autocast = torch.cuda.amp.autocast if args.precision == "amp" else suppress
@@ -88,14 +94,16 @@ def train_one_epoch(
         else:
             scheduler(step)
 
-        audio = batch # contains mel_spec, wavform, and longer list
-        class_label = batch['class_label']
+        audio = batch  # contains mel_spec, wavform, and longer list
+        class_label = batch["class_label"]
         # audio = audio.to(device=device, non_blocking=True)
         class_label = class_label.to(device=device, non_blocking=True)
 
         if args.mixup:
             # https://github.com/RetroCirce/HTS-Audio-Transformer/blob/main/utils.py#L146
-            mix_lambda = torch.from_numpy(get_mix_lambda(0.5, len(audio["waveform"]))).to(device)
+            mix_lambda = torch.from_numpy(
+                get_mix_lambda(0.5, len(audio["waveform"]))
+            ).to(device)
             class_label = do_mixup(class_label, mix_lambda)
         else:
             mix_lambda = None
@@ -205,6 +213,7 @@ def train_one_epoch(
             data_time_m.reset()
     # end for
 
+
 def evaluate(model, data, epoch, args, tb_writer=None, extra_suffix=""):
     metrics = {}
     if not args.parallel_eval:
@@ -217,14 +226,14 @@ def evaluate(model, data, epoch, args, tb_writer=None, extra_suffix=""):
     # zero_shot_metrics = zero_shot_eval(model, data, epoch, args)
     # metrics.update(zero_shot_metrics)
     if is_master(args):
-        print('Evaluating...')
-        metric_names = args.lp_metrics.split(',')
+        print("Evaluating...")
+        metric_names = args.lp_metrics.split(",")
         eval_tool = LPMetrics(metric_names=metric_names)
 
-    autocast = torch.cuda.amp.autocast if args.precision == "amp" else suppress        
+    autocast = torch.cuda.amp.autocast if args.precision == "amp" else suppress
     if "val" in data and (
-            args.val_frequency
-            and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)
+        args.val_frequency
+        and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)
     ):
         if args.parallel_eval:
             dataloader, sampler = data["val"].dataloader, data["val"].sampler
@@ -235,37 +244,38 @@ def evaluate(model, data, epoch, args, tb_writer=None, extra_suffix=""):
             dataloader = data["val"].dataloader
             num_samples = 0
             samples_per_val = dataloader.num_samples
-            
-        eval_info = {
-            'pred': [],
-            'target': []
-        }
+
+        eval_info = {"pred": [], "target": []}
         with torch.no_grad():
             for i, batch in enumerate(dataloader):
-                audio = batch # contains mel_spec, wavform, and longer list
-                class_label = batch['class_label']
-                           
+                audio = batch  # contains mel_spec, wavform, and longer list
+                class_label = batch["class_label"]
+
                 # audio = audio.to(device=device, non_blocking=True)
                 class_label = class_label.to(device=device, non_blocking=True)
 
                 with autocast():
                     pred = model(audio, device=device)
                     if args.parallel_eval:
-                        pred, class_label = lp_gather_features(pred, class_label, args.world_size, args.horovod)
-                    eval_info['pred'].append(pred)
-                    eval_info['target'].append(class_label)
-                    
+                        pred, class_label = lp_gather_features(
+                            pred, class_label, args.world_size, args.horovod
+                        )
+                    eval_info["pred"].append(pred)
+                    eval_info["target"].append(class_label)
+
                 num_samples += class_label.shape[0]
 
                 if (i % 100) == 0:  # and i != 0:
                     logging.info(
                         f"Eval Epoch: {epoch} [{num_samples} / {samples_per_val}]"
                     )
-                    
+
             if is_master(args):
-                eval_info['pred'] = torch.cat(eval_info['pred'], 0).cpu()
-                eval_info['target'] = torch.cat(eval_info['target'], 0).cpu()
-                metric_dict = eval_tool.evaluate_mertics(eval_info['pred'], eval_info['target'])
+                eval_info["pred"] = torch.cat(eval_info["pred"], 0).cpu()
+                eval_info["target"] = torch.cat(eval_info["target"], 0).cpu()
+                metric_dict = eval_tool.evaluate_mertics(
+                    eval_info["pred"], eval_info["target"]
+                )
                 metrics.update(metric_dict)
                 if "epoch" not in metrics.keys():
                     metrics.update({"epoch": epoch})
@@ -277,10 +287,7 @@ def evaluate(model, data, epoch, args, tb_writer=None, extra_suffix=""):
         logging.info(
             f"Eval Epoch: {epoch} "
             + "\n".join(
-                [
-                    "\t".join([f"{m}: {round(metrics[m], 4):.4f}" ])
-                    for m in metrics
-                ]
+                ["\t".join([f"{m}: {round(metrics[m], 4):.4f}"]) for m in metrics]
             )
         )
         if args.save_logs:

@@ -1,4 +1,4 @@
-# Copyright (c) 2025 NVIDIA CORPORATION. 
+# Copyright (c) 2025 NVIDIA CORPORATION.
 #   Licensed under the MIT license.
 
 import sys
@@ -31,7 +31,7 @@ class SysLogger(object):
         self.log = open(filename, "a")
 
     def write(self, message):
-        self.terminal.write(message+'\n')
+        self.terminal.write(message + "\n")
         self.log.write(message)
 
 
